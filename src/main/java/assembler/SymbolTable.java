@@ -10,39 +10,48 @@ import java.util.Map;
  * @author andrewtaylor
  */
 public class SymbolTable {
-    private List<String> sequence;
-    private Map<String, Object> map;
+    private List<Symbol> symbols;
+    private Map<String, Symbol> map;
 
     public SymbolTable() {
-        sequence = new ArrayList<>();
+        symbols = new ArrayList<>();
         map = new HashMap<>();
     }
     
-    /**
-     * @return the sequence
-     */
-    public List<String> getSequence() {
-        return sequence;
+    public SymbolTable(String[] names) {
+        this();
+        for (String name : names) {
+            Symbol symbol = new Symbol(name);
+            this.symbols.add(symbol);
+            this.map.put(name, symbol);
+        }
     }
 
     /**
-     * @param sequence the sequence to set
+     * @return the symbols
      */
-    public void setSequence(List<String> sequence) {
-        this.sequence = sequence;
+    public List<Symbol> getSymbols() {
+        return symbols;
+    }
+
+    /**
+     * @param symbols the symbols to set
+     */
+    public void setSymbols(List<Symbol> symbols) {
+        this.symbols = symbols;
     }
 
     /**
      * @return the map
      */
-    public Map<String, Object> getMap() {
+    public Map<String, Symbol> getMap() {
         return map;
     }
 
     /**
      * @param map the map to set
      */
-    public void setMap(Map<String, Object> map) {
+    public void setMap(Map<String, Symbol> map) {
         this.map = map;
     }
 }

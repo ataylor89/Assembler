@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 public class Assembler {
@@ -18,17 +19,15 @@ public class Assembler {
 
     public ObjectFile assemble(File file) {
         ObjectFile objectFile = new ObjectFile();
-        String code = parser.getCode(file);
-        SymbolTable symTable = parser.parseSymbols(code);
-        String[] instructions = parser.parseInstructions(code);
-        String[] dataDirectives = parser.parseDataDirectives(code);
-        byte[] header = assembleHeader(2);
+        AssemblyFile assemblyFile = parser.parse(file);
+        SymbolTable symbolTable = new SymbolTable(assemblyFile.getSymbols());
+        byte[] header = assembleHeader(assemblyFile.getSectionCount());
         byte[] lcSegment64 = assembleLcSegment64();
         byte[] section64Text = assembleSection64Text();
         byte[] section64Data = assembleSection64Data();
         byte[] lcSymtab = assembleLcSymtab();
-        byte[] textSection = assembleTextSection(instructions, symTable.getMap());
-        byte[] dataSection = assembleDataSection(dataDirectives, symTable.getMap());
+        byte[] dataSection = assembleDataSection(assemblyFile.getDataDirectives(), symbolTable);
+        byte[] textSection = assembleTextSection(assemblyFile.getInstructions(), symbolTable);
         objectFile.addSection(header, "MachO-64 header");  
         objectFile.addSection(lcSegment64, "Load command LC_SEGMENT_64");
         objectFile.addSection(section64Text, "SECTION_64 text");
@@ -116,9 +115,9 @@ public class Assembler {
     public byte[] assembleTextSection(String[] instructions, Map<String, Object> symbols) {
         ByteArray textSection = new ByteArray();
         for (int i = 0; i < instructions.length; i++) {
-            Instruction instruction = parser.parseInstruction(instructions[i], symbols);
+            Instruction instruction = new Instruction(instructions[i]            );
             System.out.println("Instruction:\n" + instruction);
-            Opcode opcode = instruction.getOpcode();
+            Opcode opcode = Opcode.parse(instruction.getOpcode());
             if (opcode == null)
                 continue;
             Object operand1 = instruction.getOperand1();
@@ -202,13 +201,12 @@ public class Assembler {
         return new byte[] {(byte) 0x0f, (byte) 0x05};
     }
 
-    public byte[] assembleDataSection(String[] directives, Map<String, Object> symbols) {
+    public byte[] assembleDataSection(String[] directives, SymbolTable symbolTable) {
         ByteArray dataSection = new ByteArray();
-        for (int i = 0; i < directives.length; i++) {
-            System.out.println("Assembling data directive: " + directives[i]);
-            DataDirective directive = parser.parseDataDirective(directives[i], symbols);
+        for (int i = 0; i < directives.length; i++) {      
+            DataDirective directive = new DataDirective(directives[i]);
             System.out.println(directive);
-            Pseudoopcode opcode = directive.getOpcode();
+            Pseudoopcode opcode = Pseudoopcode.parse(directive.getOpcode());
             switch (opcode) {
                 case DB:
                     String operand = (String) directive.getOperand();
@@ -217,6 +215,10 @@ public class Assembler {
             }       
         }
         return dataSection.getBytes();
+    }
+    
+    public byte[] assembleSymbolTable() {
+        
     }
     
     public void writeToFile(ObjectFile objectFile, File dest) {

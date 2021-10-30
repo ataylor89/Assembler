@@ -5,8 +5,9 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 /**
  *
@@ -14,10 +15,25 @@ import java.util.stream.Collectors;
  */
 public class Parser {
     
-    public static final char SINGLE_QUOTE = '\'';
-    public static final char DOUBLE_QUOTE = '"';
-    public static final char ESCAPE_CHARACTER = '\\';
-    public static final char COMMA = ',';
+    public AssemblyFile parse(File file) {
+        String code = readFile(file);
+        return parse(code);
+    }
+    
+    public AssemblyFile parse(String code) {
+        AssemblyFile assemblyFile = new AssemblyFile();
+        assemblyFile.setCode(code);
+        assemblyFile.setTextSection(parseTextSection(code));
+        assemblyFile.setDataSection(parseDataSection(code));
+        assemblyFile.setBssSection(parseBssSection(code));
+        assemblyFile.setGlobals(parseGlobals(code));
+        assemblyFile.setExterns(parseExterns(code));
+        assemblyFile.setInstructions(parseInstructions(code));
+        assemblyFile.setDataDirectives(parseDataDirectives(code));
+        assemblyFile.setBssDirectives(parseBssDirectives(code));
+        assemblyFile.setSymbols(parseSymbols(code));
+        return assemblyFile;
+    }
     
     public String parseTextSection(String code) {
         int start = code.indexOf("section .text");
@@ -121,6 +137,36 @@ public class Parser {
         return directives.toArray(arr);
     }
     
+    public String[] parseSymbols(String code) {
+        Set<String> symbols = new LinkedHashSet<>();
+        String[] lines = code.split("\n");
+        String name = null;
+        for (int i = 0; i < lines.length; i++) {
+            String[] tokens = lines[i].split("\\s+");
+            int numt = tokens.length;
+            if (numt > 0) {
+                if (tokens[0].equals("global"))
+                    symbols.add(tokens[1]);
+                else if (tokens[0].equals("extern"))
+                    symbols.add(tokens[1]);
+                else if (tokens[0].endsWith(":")) {
+                    name = tokens[0];
+                    name = name.substring(0, name.length()-1);
+                    symbols.add(name);
+                }
+                else if (numt > 1 && (tokens[1].equals("db") || tokens[1].equals("equ"))) {
+                    name = tokens[0];
+                    if (name.endsWith(":"))
+                        name = name.substring(0, name.length()-1);
+                    symbols.add(tokens[0]);
+                }
+            }
+        }
+        String[] arr = new String[symbols.size()];
+        return symbols.toArray(arr);
+    }
+    
+    /*
     public SymbolTable parseSymbols(String code) {
         SymbolTable symTable = new SymbolTable();
         String[] directives = parseDataDirectives(code);
@@ -134,168 +180,21 @@ public class Parser {
             }
         }
         return symTable;
-    }
-    
-    public Instruction parseInstruction(String instruction, Map<String, Object> symbols) {
-        String[] tokens = instruction.split("\\s+", 4);
-        String label = null;
-        Opcode opcode = null;
-        String operand1 = null;
-        String operand2 = null;
-        if (tokens[0].endsWith(":") && tokens.length == 4) {
-            label = tokens[0].substring(0, tokens[0].length()-1);
-            opcode = Opcode.valueOf(tokens[1].toUpperCase());
-            operand1 = tokens[2];
-            operand2 = tokens[3];
-        }
-        else if (tokens.length == 3) {
-            opcode = Opcode.valueOf(tokens[0].toUpperCase());
-            operand1 = tokens[1];
-            operand2 = tokens[2];
-        }
-        else if (tokens.length == 2) {
-            opcode = Opcode.valueOf(tokens[0].toUpperCase());
-            operand1 = tokens[1];
-        }
-        else {
-            opcode = Opcode.valueOf(tokens[0].toUpperCase());
-        }
-        Instruction obj = new Instruction();
-        obj.setLabel(label);
-        obj.setOpcode(opcode); 
-        obj.setOperand1(parseInstructionOperand(operand1, symbols));
-        obj.setOperand2(parseInstructionOperand(operand2, symbols));
-        return obj;
-    }
-    
-    public Object parseInstructionOperand(String operand, Map<String, Object> symbols) {
-        if (operand == null)
-            return null;        
-        if (operand.endsWith(","))
-            operand = operand.substring(0, operand.length()-1);
-        if (symbols.containsKey(operand))
-            return symbols.get(operand);
-        else if (Registers.map().containsKey(operand))
-            return Registers.map().get(operand);
-        else {
-            try {
-                return Long.decode(operand);
-            }
-            catch (NumberFormatException e) {
-                System.err.println(e);
-                return null;
-            }
-        }
-    }
-    
-    public DataDirective parseDataDirective(String directive, Map<String, Object> symbols) {
-        String[] tokens = directive.split("\\s+", 3);
-        Pseudoopcode opcode = Pseudoopcode.valueOf(tokens[1].toUpperCase());
-        switch (opcode) {
-            case DB:
-                return parseDbDirective(directive, symbols);
-            case EQU:
-                return parseEquDirective(directive, symbols);
-            default:
-                return null;
-        }
-    }
-    
-    public DataDirective parseDbDirective(String directive, Map<String, Object> symbols) {        
-        String[] tokens = directive.split("\\s+", 3);
-        String label = tokens[0];
-        if (label.endsWith(":"))
-            label = label.substring(0, label.length()-1);
-        Object operand = parseDbOperand(label, tokens[2], symbols);
-        DataDirective dataDirective = new DataDirective();
-        dataDirective.setLabel(label);
-        dataDirective.setOpcode(Pseudoopcode.DB);
-        dataDirective.setOperand(operand);
-        return dataDirective;
-    }   
-    
-    public Object parseDbOperand(String label, String operand, Map<String, Object> symbols) {
-        if (symbols.containsKey(label))
-            return symbols.get(label);
-        String value = ""; 
-        boolean openDoubleQuote = false;
-        boolean openSingleQuote = false;
-        int numQuotes = 0;
-        boolean isQuoted = false;
-        int j = 0;
-        for (int i = 0; i < operand.length(); i++) {
-            char b = (i > 0) ? operand.charAt(i-1) : '\0';
-            char c = operand.charAt(i);
-            if (c == DOUBLE_QUOTE && b != ESCAPE_CHARACTER && !openSingleQuote) {
-                openDoubleQuote = !openDoubleQuote;
-                numQuotes++;
-            }   
-            else if (c == SINGLE_QUOTE && b != ESCAPE_CHARACTER && !openDoubleQuote) {
-                openSingleQuote = !openSingleQuote;
-                numQuotes++;
-            }   
-            if (numQuotes == 2)
-                isQuoted = true;
-            if ((c == COMMA && !openDoubleQuote && !openSingleQuote) || (i == operand.length()-1)) {
-                String s = operand.substring(j, i+1);
-                if (s.isEmpty())
-                    continue;
-                else if (isQuoted) {
-                    s = s.substring(1, s.length()-1);
-                    value += s;
-                }   
-                else {
-                    try {
-                        value += Byte.decode(s).toString();
-                    } catch (NumberFormatException e) {
-                        System.err.println(e);
-                    }   
-                }   
-                numQuotes = 0;
-                isQuoted = false;
-                j = i + 1;
-            }   
-        }   
-        return value;
-    }
-    
-    public DataDirective parseEquDirective(String directive, Map<String, Object> symbols) {
-        String[] tokens = directive.split("\\s+", 3);
-        String label = tokens[0];
-        if (label.endsWith(":"))
-            label = label.substring(0, label.length()-1);
-        Object operand = parseEquOperand(label, tokens[2], symbols);
-        DataDirective dataDirective = new DataDirective();
-        dataDirective.setLabel(label);
-        dataDirective.setOpcode(Pseudoopcode.EQU);
-        dataDirective.setOperand(operand);
-        return dataDirective;
-    }    
-    
-    public Object parseEquOperand(String label, String operand, Map<String, Object> symbols) {
-        Object value = null;
-        if (symbols.containsKey(label))
-            value = symbols.get(label);
-        else if (operand.startsWith("$-")) {
-            String s = (String) symbols.get(operand.substring(2));
-            value = s.length();
-        }   
-        else {
-            try {
-                value = Long.decode(operand);
-            } catch (NumberFormatException e) {
-                System.err.println(e);
-            }   
-        }
-        return value;
-    }
-    
-    public String getCode(File file) {
+    }*/
+        
+    public String readFile(File file) {
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             return reader.lines().collect(Collectors.joining("\n"));
         } catch (IOException e) {
             System.err.println(e);
             return null;
         }
+    }
+    
+    public static void main(String[] args) {
+        Parser parser = new Parser();
+        String path = System.getProperty("user.home") + "/nasm/simple.asm";
+        AssemblyFile af = parser.parse(new File(path));
+        System.out.println(af);
     }
 }
