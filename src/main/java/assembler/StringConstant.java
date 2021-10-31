@@ -4,18 +4,18 @@ package assembler;
  *
  * @author andrewtaylor
  */
-public class CharString {
+public class StringConstant {
     
-    private String value;
+    private String value = "";
     
     public static final char SINGLE_QUOTE = '\'';
     public static final char DOUBLE_QUOTE = '"';
     public static final char ESCAPE_CHARACTER = '\\';
     public static final char COMMA = ',';
     
-    public CharString() {}
+    public StringConstant() {}
     
-    public CharString(String operand) {    
+    public StringConstant(String operand) {    
         boolean openDoubleQuote = false;
         boolean openSingleQuote = false;
         int numQuotes = 0;
@@ -54,6 +54,16 @@ public class CharString {
                 j = i + 1;
             }   
         }   
+    }
+    
+    public static boolean isStringConstant(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '"' && i == 0)
+                return true;
+            if (text.charAt(i) == '"' && text.charAt(i-1) != '\'')
+                return true;
+        }
+        return false;
     }
     
     public void setValue(String value) {

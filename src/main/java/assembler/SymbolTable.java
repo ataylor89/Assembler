@@ -10,9 +10,10 @@ import java.util.Map;
  * @author andrewtaylor
  */
 public class SymbolTable {
-    private List<Symbol> symbols;
-    private Map<String, Symbol> map;
-
+    public List<Symbol> symbols;
+    public Map<String, Symbol> map;
+    public int offset = 0;
+    
     public SymbolTable() {
         symbols = new ArrayList<>();
         map = new HashMap<>();
@@ -26,7 +27,7 @@ public class SymbolTable {
             this.map.put(name, symbol);
         }
     }
-
+   
     /**
      * @return the symbols
      */
@@ -53,5 +54,15 @@ public class SymbolTable {
      */
     public void setMap(Map<String, Symbol> map) {
         this.map = map;
+    }
+    
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Symbol table\n");
+        for (Symbol symbol : symbols) {
+            sb.append(String.format("Symbol name: %s\tvalue: %s\n", symbol.getName(), symbol.getValue()));
+        }
+        return sb.toString();
     }
 }

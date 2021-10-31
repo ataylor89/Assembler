@@ -6,8 +6,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 /**
  *
@@ -15,27 +15,29 @@ import java.util.stream.Collectors;
  */
 public class Parser {
     
-    public AssemblyFile parse(File file) {
-        String code = readFile(file);
-        return parse(code);
+    private AssemblyFile assemblyFile;
+    private String code;
+    
+    public Parser(File file) {
+        assemblyFile = new AssemblyFile(file);
+        code = readFile(file);
+        assemblyFile.setCode(code);
     }
     
-    public AssemblyFile parse(String code) {
-        AssemblyFile assemblyFile = new AssemblyFile();
-        assemblyFile.setCode(code);
-        assemblyFile.setTextSection(parseTextSection(code));
-        assemblyFile.setDataSection(parseDataSection(code));
-        assemblyFile.setBssSection(parseBssSection(code));
-        assemblyFile.setGlobals(parseGlobals(code));
-        assemblyFile.setExterns(parseExterns(code));
-        assemblyFile.setInstructions(parseInstructions(code));
-        assemblyFile.setDataDirectives(parseDataDirectives(code));
-        assemblyFile.setBssDirectives(parseBssDirectives(code));
-        assemblyFile.setSymbols(parseSymbols(code));
+    public AssemblyFile parse() {
+        assemblyFile.setTextSection(parseTextSection());
+        assemblyFile.setDataSection(parseDataSection());
+        assemblyFile.setBssSection(parseBssSection());
+        assemblyFile.setGlobals(parseGlobals());
+        assemblyFile.setExterns(parseExterns());
+        assemblyFile.setSymbolTable(parseSymbolTable());
+        assemblyFile.setDataDirectives(parseDataDirectives());
+        assemblyFile.setInstructions(parseInstructions());
+        assemblyFile.setBssDirectives(parseBssDirectives());
         return assemblyFile;
     }
     
-    public String parseTextSection(String code) {
+    private String parseTextSection() {
         int start = code.indexOf("section .text");
         int end = code.indexOf("section", start+13);
         if (end < 0)
@@ -45,7 +47,7 @@ public class Parser {
         return null;
     }
     
-    public String parseDataSection(String code) {
+    private String parseDataSection() {
         int start = code.indexOf("section .data");
         int end = code.indexOf("section", start+13);
         if (end < 0)
@@ -55,7 +57,7 @@ public class Parser {
         return null;
     }
     
-    public String parseBssSection(String code) {
+    private String parseBssSection() {
         int start = code.indexOf("section .bss");
         int end = code.indexOf("section", start+12);
         if (end < 0)
@@ -65,7 +67,7 @@ public class Parser {
         return null;
     }
     
-    public String[] parseGlobals(String code) {
+    private String[] parseGlobals() {
         List<String> globals = new ArrayList<>();
         int start = code.indexOf("global");
         int end = code.indexOf("\n", start);
@@ -80,7 +82,7 @@ public class Parser {
         return globals.toArray(arr);
     }
     
-    public String[] parseExterns(String code) {
+    private String[] parseExterns() {
         List<String> externs = new ArrayList<>();
         int start = code.indexOf("extern");
         int end = code.indexOf("\n", start);
@@ -95,49 +97,209 @@ public class Parser {
         return externs.toArray(arr);
     }
     
-    public String[] parseInstructions(String code) {
-        String textSection = parseTextSection(code);
+    private Instruction[] parseInstructions() {
+        String textSection = assemblyFile.getTextSection();
         if (textSection == null)
             return null;
         String[] lines = textSection.split("\n");
-        List<String> instructions = new ArrayList<>();
+        List<Instruction> instructions = new ArrayList<>();
+        String text = null;
         for (int i = 1; i < lines.length; i++) {
-            if (lines[i].trim().endsWith(":") && i < lines.length-1)
-                instructions.add(lines[i].trim() + " " + lines[++i].trim());
-            else
-                instructions.add(lines[i].trim());
+            if (lines[i].trim().endsWith(":") && i < lines.length-1) {
+                text = lines[i].trim() + " " + lines[++i].trim();
+                Instruction instruction = parseInstruction(text);
+                instructions.add(instruction);
+            }
+            else {
+                text = lines[i].trim();
+                Instruction instruction = parseInstruction(text);
+                instructions.add(instruction);
+            }
         }
-        String[] arr = new String[instructions.size()];
+        Instruction[] arr = new Instruction[instructions.size()];
         return instructions.toArray(arr);
     }
     
-    public String[] parseDataDirectives(String code) {
-        String dataSection = parseDataSection(code);
+    private Instruction parseInstruction(String text) {
+        Instruction instruction = new Instruction();
+        String[] tokens = text.split("\\s+", 4);
+        Opcode opcode = null;
+        for (int i = 0; i < tokens.length; i++) {
+            switch (i) {
+                case 0:
+                    if (Opcode.isOpcode(tokens[0])) {
+                        opcode = Opcode.parse(tokens[0]);
+                        instruction.setOpcode(opcode);
+                    }
+                    else {
+                        instruction.setLabel(tokens[0]);
+                    }   break;
+                case 1:
+                    if (Opcode.isOpcode(tokens[0])) {
+                        Operand operand1 = new Operand(tokens[i]);
+                        evaluateOperand(operand1);
+                        instruction.setOperand1(operand1);
+                    }
+                    else if (Opcode.isOpcode(tokens[1])) {
+                        opcode = Opcode.parse(tokens[1]);
+                        instruction.setOpcode(opcode);
+                    }   break;
+                case 2:
+                    if (Opcode.isOpcode(tokens[0])) {
+                        Operand operand = new Operand(tokens[2]);
+                        evaluateOperand(operand);
+                        instruction.setOperand2(operand);
+                    }
+                    else if (Opcode.isOpcode(tokens[1])) {
+                        Operand operand = new Operand(tokens[2]);
+                        evaluateOperand(operand);
+                        instruction.setOperand1(operand);
+                    }   break;
+                case 3:
+                    if (Opcode.isOpcode(tokens[1])) {
+                        Operand operand = new Operand(tokens[3]);
+                        evaluateOperand(operand);
+                        instruction.setOperand2(operand);
+                    }   break;
+                default:
+                    break;
+            }
+        }
+        return instruction;
+    }
+    
+    private void evaluateOperand(Operand operand) {
+        SymbolTable symbolTable = assemblyFile.getSymbolTable();
+        String expression = operand.getExpression();
+        
+        if (symbolTable.map.containsKey(expression)) {
+            Symbol symbol = symbolTable.map.get(expression);
+            Long value = symbol.getValue();
+            if (symbol.getType() == (byte) 0x02)
+                operand.setValue(value.intValue());
+            else if (symbol.getType() == (byte) 0x0e)
+                operand.setValue(value);
+        }
+        else if (Register.isRegister(expression)) {
+            Object value = Register.parse(expression);
+            operand.setValue(value);
+        }
+        else {
+            try {
+                Object value = Integer.decode(expression);
+                operand.setValue(value);
+            } catch (NumberFormatException e) {
+                System.err.println(e);
+            }
+        }
+    }
+    
+    private DataDirective[] parseDataDirectives() {
+        List<DataDirective> directives = new ArrayList<>();
+        String dataSection = assemblyFile.getDatatSection();
         if (dataSection == null)
             return null;
+        SymbolTable symbolTable = assemblyFile.getSymbolTable();
         String[] lines = dataSection.split("\n");
-        List<String> directives = new ArrayList<>();
+        int offset = 0;
         for (int i = 1; i < lines.length; i++) {
-            directives.add(lines[i].trim());
+            DataDirective directive = parseDataDirective(lines[i].trim());
+            String label = directive.getLabel();
+            Pseudoopcode opcode = directive.getOpcode();
+            Operand operand = directive.getOperand();
+            Symbol symbol = symbolTable.map.get(label);
+            switch (opcode) {
+                case DB:
+                    symbol.setValue(symbolTable.offset);
+                    String s = (String) operand.getValue();
+                    symbol.setSize(s.length());
+                    symbol.setType((byte) 0x0e);
+                    symbol.setSect((byte) 0x02);
+                    symbolTable.offset += s.length();
+                    break;
+                case EQU:
+                    symbol.setValue((Long) operand.getValue());
+                    symbol.setType((byte) 0x02);
+                    symbol.setSect((byte) 0x00);
+                    break;
+            }
+            directives.add(directive);
         }
-        String[] arr = new String[directives.size()];
+        DataDirective[] arr = new DataDirective[directives.size()];
         return directives.toArray(arr);
     }
     
-    public String[] parseBssDirectives(String code) {
-        String bssSection = parseBssSection(code);
+    private DataDirective parseDataDirective(String text) {
+        DataDirective directive = new DataDirective();
+        String[] tokens = text.split("\\s+", 3);
+        Pseudoopcode opcode = null;
+        String label = null;
+        for (int i = 0; i < tokens.length; i++) {
+            switch (i) {
+                case 0:
+                    label = tokens[0];
+                    if (label.endsWith(":"))
+                        label = label.substring(0, label.length()-1);
+                    directive.setLabel(label);
+                    break;
+                case 1:
+                    opcode = Pseudoopcode.parse(tokens[1]);
+                    directive.setOpcode(opcode);
+                    break;
+                case 2:
+                    Operand operand = new Operand(tokens[2]);
+                    evaluateOperand(operand, opcode);
+                    directive.setOperand(operand);
+                    break;
+                default:
+                    break;
+            }
+        }
+        return directive;
+    }
+    
+    private void evaluateOperand(Operand operand, Pseudoopcode opcode) {
+        SymbolTable symbolTable = assemblyFile.getSymbolTable();
+        String expression = operand.getExpression();
+        switch (opcode) {
+            case DB:
+                if (StringConstant.isStringConstant(expression)) {
+                    StringConstant constant = new StringConstant(expression);
+                    operand.setValue(constant.getValue());
+                }
+                break;
+            case EQU:
+                if (expression.startsWith("$-")) {
+                    Symbol ref = symbolTable.map.get(expression.substring(2, expression.length()));
+                    operand.setValue(ref.getSize());
+                }     
+                break;
+            default:
+                break;
+        }
+    }
+    
+    public BssDirective[] parseBssDirectives() {
+        String bssSection = assemblyFile.getBssSection();
         if (bssSection == null)
             return null;
         String[] lines = bssSection.split("\n");
-        List<String> directives = new ArrayList<>();
+        List<BssDirective> directives = new ArrayList<>();
         for (int i = 1; i < lines.length; i++) {
-            directives.add(lines[i].trim());
+            BssDirective directive = new BssDirective();
+            // directives.add(lines[i].trim());
+            directives.add(directive);
         }
-        String[] arr = new String[directives.size()];
+        BssDirective[] arr = new BssDirective[directives.size()];
         return directives.toArray(arr);
     }
     
-    public String[] parseSymbols(String code) {
+    private SymbolTable parseSymbolTable() {
+        String[] symbols = parseSymbols();
+        return new SymbolTable(symbols);
+    }
+    
+    private String[] parseSymbols() {
         Set<String> symbols = new LinkedHashSet<>();
         String[] lines = code.split("\n");
         String name = null;
@@ -192,9 +354,9 @@ public class Parser {
     }
     
     public static void main(String[] args) {
-        Parser parser = new Parser();
         String path = System.getProperty("user.home") + "/nasm/simple.asm";
-        AssemblyFile af = parser.parse(new File(path));
+        Parser parser = new Parser(new File(path));
+        AssemblyFile af = parser.parse();
         System.out.println(af);
     }
 }

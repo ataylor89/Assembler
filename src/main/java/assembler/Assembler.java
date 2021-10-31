@@ -1,33 +1,32 @@
 package assembler;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 public class Assembler {
     
-    private Parser parser;
-
-    public Assembler() {
-        parser = new Parser();
+    private File src;
+    private File dest;
+    private ObjectFile objectFile;
+    private AssemblyFile assemblyFile;
+    private SymbolTable symbolTable;
+    
+    public Assembler(File src, File dest) {
+        this.src = src;
+        this.dest = dest;
+        objectFile = new ObjectFile();
     }
 
-    public ObjectFile assemble(File file) {
-        ObjectFile objectFile = new ObjectFile();
-        AssemblyFile assemblyFile = parser.parse(file);
-        SymbolTable symbolTable = new SymbolTable(assemblyFile.getSymbols());
+    public ObjectFile assemble() {
+        Parser parser = new Parser(src);
+        assemblyFile = parser.parse();
+        symbolTable = assemblyFile.getSymbolTable();
         byte[] header = assembleHeader(assemblyFile.getSectionCount());
         byte[] lcSegment64 = assembleLcSegment64();
         byte[] section64Text = assembleSection64Text();
         byte[] section64Data = assembleSection64Data();
         byte[] lcSymtab = assembleLcSymtab();
-        byte[] dataSection = assembleDataSection(assemblyFile.getDataDirectives(), symbolTable);
-        byte[] textSection = assembleTextSection(assemblyFile.getInstructions(), symbolTable);
+        byte[] dataSection = assembleDataSection();
+        byte[] textSection = assembleTextSection();
         objectFile.addSection(header, "MachO-64 header");  
         objectFile.addSection(lcSegment64, "Load command LC_SEGMENT_64");
         objectFile.addSection(section64Text, "SECTION_64 text");
@@ -112,16 +111,14 @@ public class Assembler {
         return lcSymtab.getBytes();
     }
     
-    public byte[] assembleTextSection(String[] instructions, Map<String, Object> symbols) {
+    public byte[] assembleTextSection() {
         ByteArray textSection = new ByteArray();
+        Instruction[] instructions = assemblyFile.getInstructions();
         for (int i = 0; i < instructions.length; i++) {
-            Instruction instruction = new Instruction(instructions[i]            );
-            System.out.println("Instruction:\n" + instruction);
-            Opcode opcode = Opcode.parse(instruction.getOpcode());
-            if (opcode == null)
-                continue;
-            Object operand1 = instruction.getOperand1();
-            Object operand2 = instruction.getOperand2();
+            Instruction instruction = instructions[i];
+            Opcode opcode = instruction.getOpcode();
+            Operand operand1 = instruction.getOperand1();
+            Operand operand2 = instruction.getOperand2();
             byte[] bytes = null;
             switch (opcode) {
                 case MOV:
@@ -138,20 +135,27 @@ public class Assembler {
                     break;
             }
         }
+        int n = textSection.getIndex() % 8;
+        for (; n < 8; n++)
+            textSection.addByte((byte) 0x00);
         return textSection.getBytes();
     }
     
-    public byte[] assembleMov(Object operand1, Object operand2) {
+    public byte[] assembleMov(Operand operand1, Operand operand2) {
         ByteArray byteArray = new ByteArray();
-        if (operand1 instanceof Register && operand2 instanceof Long) {
-            Register register = (Register) operand1;
-            Long num = (Long) operand2;
+        Object value1 = operand1.getValue();
+        Object value2 = operand2.getValue();
+        if (value1 instanceof Register && value2 instanceof Long) {
+            Register register = (Register) value1;
+            Long num = (Long) value2;
             byteArray.addBytes(assembleMovCode(register));
             byteArray.addQWord(num, Endian.LITTLE); 
         }
-        else if (operand1 instanceof Register && operand2 instanceof Integer) {
-            Register register = (Register) operand1;
-            Integer num = (Integer) operand2;
+        else if (value1 instanceof Register && value2 instanceof Integer) {
+            Register register = (Register) value1;
+            if (register.size() == 64)
+                register = Registers.map32.get(register);
+            Integer num = (Integer) value2;
             byteArray.addBytes(assembleMovCode(register));
             byteArray.addDWord(num, Endian.LITTLE);
         }
@@ -180,11 +184,13 @@ public class Assembler {
         return new byte[] {};
     }
 
-    public byte[] assembleXor(Object operand1, Object operand2) {
+    public byte[] assembleXor(Operand operand1, Operand operand2) {
         ByteArray byteArray = new ByteArray();
-        if (operand1 instanceof Register && operand2 instanceof Register) {
-            Register register1 = (Register) operand1;
-            Register register2 = (Register) operand2;
+        Object value1 = operand1.getValue(); 
+        Object value2 = operand2.getValue();
+        if (value1 instanceof Register && value2 instanceof Register) {
+            Register register1 = (Register) value1;
+            Register register2 = (Register) value2;
             if (register1 == Register.RAX && register2 == Register.RAX) 
                 byteArray.addBytes(new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xc0});
             else if (register1 == Register.RDI && register2 == Register.RDI)
@@ -201,27 +207,29 @@ public class Assembler {
         return new byte[] {(byte) 0x0f, (byte) 0x05};
     }
 
-    public byte[] assembleDataSection(String[] directives, SymbolTable symbolTable) {
+    public byte[] assembleDataSection() {
         ByteArray dataSection = new ByteArray();
+        DataDirective[] directives = assemblyFile.getDataDirectives();
         for (int i = 0; i < directives.length; i++) {      
-            DataDirective directive = new DataDirective(directives[i]);
+            DataDirective directive = directives[i];
             System.out.println(directive);
-            Pseudoopcode opcode = Pseudoopcode.parse(directive.getOpcode());
+            Pseudoopcode opcode = directive.getOpcode();
             switch (opcode) {
                 case DB:
-                    String operand = (String) directive.getOperand();
-                    dataSection.addBytes(operand.getBytes());
+                    Operand operand = directive.getOperand();
+                    String value = (String) operand.getValue();
+                    dataSection.addBytes(value.getBytes());
                     break;
             }       
         }
         return dataSection.getBytes();
     }
-    
+    /*
     public byte[] assembleSymbolTable() {
         
     }
-    
-    public void writeToFile(ObjectFile objectFile, File dest) {
+    */
+    public void writeToFile() {
         try (FileOutputStream fos = new FileOutputStream(dest)) {  
             fos.write(objectFile.getFile().getBytes());
             fos.flush();
@@ -231,15 +239,15 @@ public class Assembler {
     }
 
     public static void main(String[] args) {
-        if (args.length < 2) {
+        /*if (args.length < 2) {
             System.out.println("Usage: java assembler5.Assembler <sourcefile.asm> <objectfile.o>");
             return;
-        }
-        Assembler assembler = new Assembler();
-        File src = new File(args[0]);
-        File dest = new File(args[1]);
-        ObjectFile objectFile = assembler.assemble(src);
+        }*/
+        File src = new File(System.getProperty("user.home") + "/nasm/simple.asm");
+        File dest = new File(System.getProperty("user.dir") + "/simple.o");
+        Assembler assembler = new Assembler(src, dest);
+        ObjectFile objectFile = assembler.assemble();
         System.out.println(objectFile);
-        assembler.writeToFile(objectFile, dest);
+        assembler.writeToFile();
     }
 }

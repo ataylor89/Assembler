@@ -11,6 +11,7 @@ public class Symbol {
     private byte sect;
     private short desc;
     private long value;
+    private long size;
 
     public Symbol() {}
     
@@ -100,5 +101,19 @@ public class Symbol {
      */
     public void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * @return the size
+     */
+    public long getSize() {
+        return size;
+    }
+
+    /**
+     * @param size the size to set
+     */
+    public void setSize(long size) {
+        this.size = size;
     }
 }
