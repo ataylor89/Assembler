@@ -1,33 +1,35 @@
 package assembler;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.Map;
 public class Assembler {
     
-    private Parser parser;
+    private File src, dest;
+    private ObjectFile objectFile;
+    private AssemblyFile assemblyFile;
 
-    public Assembler() {
-        parser = new Parser();
+    public Assembler(File src, File dest) {
+        objectFile = new ObjectFile();
+        Parser parser = new Parser(src);
+        assemblyFile = parser.parse();
     }
 
-    public ObjectFile assemble(File file) {
-        ObjectFile objectFile = new ObjectFile();
-        AssemblyFile assemblyFile = parser.parse(file);
-        SymbolTable symbolTable = new SymbolTable(assemblyFile.getSymbols());
-        byte[] header = assembleHeader(assemblyFile.getSectionCount());
+    public ObjectFile assemble() {
+        int numSections = assemblyFile.getSectionCount();
+        byte[] header = assembleHeader(numSections);
         byte[] lcSegment64 = assembleLcSegment64();
         byte[] section64Text = assembleSection64Text();
         byte[] section64Data = assembleSection64Data();
         byte[] lcSymtab = assembleLcSymtab();
-        byte[] dataSection = assembleDataSection(assemblyFile.getDataDirectives(), symbolTable);
-        byte[] textSection = assembleTextSection(assemblyFile.getInstructions(), symbolTable);
+        byte[] dataSection = assembleDataSection();
+        byte[] textSection = assembleTextSection();
+        byte[] symTable = assembleSymbolTable(textSection.length);
         objectFile.addSection(header, "MachO-64 header");  
         objectFile.addSection(lcSegment64, "Load command LC_SEGMENT_64");
         objectFile.addSection(section64Text, "SECTION_64 text");
@@ -35,9 +37,10 @@ public class Assembler {
         objectFile.addSection(lcSymtab, "LC_SYMTAB");
         objectFile.addSection(textSection, "Text section");
         objectFile.addSection(dataSection, "Data section");
+        objectFile.addSection(symTable, "Symbol table");
         return objectFile;
     }
- 
+    
     public byte[] assembleHeader(int numLoadCommands){
         ByteArray header = new ByteArray();
         header.addBytes(new byte[] {(byte) 0xcf, (byte) 0xfa, (byte) 0xed, (byte) 0xfe}); // magic number
@@ -112,24 +115,25 @@ public class Assembler {
         return lcSymtab.getBytes();
     }
     
-    public byte[] assembleTextSection(String[] instructions, Map<String, Object> symbols) {
+    public byte[] assembleTextSection() {
         ByteArray textSection = new ByteArray();
+        Instruction[] instructions = assemblyFile.getInstructions();
         for (int i = 0; i < instructions.length; i++) {
-            Instruction instruction = new Instruction(instructions[i]            );
+            Instruction instruction = instructions[i];
             System.out.println("Instruction:\n" + instruction);
             Opcode opcode = Opcode.parse(instruction.getOpcode());
-            if (opcode == null)
-                continue;
-            Object operand1 = instruction.getOperand1();
-            Object operand2 = instruction.getOperand2();
+            String operand1 = instruction.getOperand1();
+            String operand2 = instruction.getOperand2();
+            Object op1 = Expressions.eval(operand1);
+            Object op2 = Expressions.eval(operand2);
             byte[] bytes = null;
             switch (opcode) {
                 case MOV:
-                    bytes = assembleMov(operand1, operand2);
+                    bytes = assembleMov(op1, op2);
                     textSection.addBytes(bytes);
                     break;
                 case XOR:
-                    bytes = assembleXor(operand1, operand2);
+                    bytes = assembleXor(op1, op2);
                     textSection.addBytes(bytes);
                     break;
                 case SYSCALL:
@@ -138,6 +142,9 @@ public class Assembler {
                     break;
             }
         }
+        int n = 8 - (textSection.getIndex() % 8);
+        for (int i = 0; i < n; i++)
+            textSection.addByte((byte) 0);
         return textSection.getBytes();
     }
     
@@ -151,8 +158,9 @@ public class Assembler {
         }
         else if (operand1 instanceof Register && operand2 instanceof Integer) {
             Register register = (Register) operand1;
+            Register reg32 = Registers.map32.get(register);
             Integer num = (Integer) operand2;
-            byteArray.addBytes(assembleMovCode(register));
+            byteArray.addBytes(assembleMovCode(reg32));
             byteArray.addDWord(num, Endian.LITTLE);
         }
         return byteArray.getBytes();
@@ -201,24 +209,83 @@ public class Assembler {
         return new byte[] {(byte) 0x0f, (byte) 0x05};
     }
 
-    public byte[] assembleDataSection(String[] directives, SymbolTable symbolTable) {
+    public byte[] assembleDataSection() {
         ByteArray dataSection = new ByteArray();
+        DataDirective directives[] = assemblyFile.getDataDirectives();
         for (int i = 0; i < directives.length; i++) {      
-            DataDirective directive = new DataDirective(directives[i]);
+            DataDirective directive = directives[i];
             System.out.println(directive);
             Pseudoopcode opcode = Pseudoopcode.parse(directive.getOpcode());
             switch (opcode) {
                 case DB:
                     String operand = (String) directive.getOperand();
-                    dataSection.addBytes(operand.getBytes());
+                    String value = (String) Expressions.eval(operand);
+                    dataSection.addBytes(value.getBytes());
                     break;
             }       
         }
+        int n = 8 - (dataSection.getIndex() % 8);
+        for (int i = 0; i < n; i++)
+            dataSection.addByte((byte) 0);
         return dataSection.getBytes();
     }
     
-    public byte[] assembleSymbolTable() {
-        
+    public byte[] assembleSymbolTable(int dataOffset) {
+        ByteArray symSection = new ByteArray();
+        symSection.addDWord(0x0c, Endian.LITTLE);
+        symSection.addDWord(0x0e, Endian.BIG);
+        int strx = 1;
+        Map<Character, Integer> order = new HashMap<>();
+        order.put('d', 0);
+        order.put('a', 1);
+        order.put('g', 2);
+        List<Symbol> lst = Symbols.list;
+        Collections.sort(lst, (Symbol s1, Symbol s2) -> {
+            Integer o1 = order.get(s1.getType());
+            Integer o2 = order.get(s2.getType());
+            return o1.compareTo(o2);
+        });
+        for (int i = 0; i < lst.size(); i++) {
+            Symbol symbol = Symbols.list.get(i);            
+            symSection.addDWord(symbol.getIndex());
+            switch (symbol.getType()) {
+                case 'd':
+                    symSection.addByte((byte) 0x0e); // type 
+                    symSection.addByte((byte) 0x02); // sect
+                    symSection.addWord(0); // desc
+                    symSection.addQWord(dataOffset + symbol.getValue());
+                    break;
+                case 'a':
+                    symSection.addByte((byte) 0x02); // type
+                    symSection.addByte((byte) 0x00); // sect
+                    symSection.addWord(0); // desc
+                    symSection.addQWord(symbol.getValue());
+                    break;
+                case 't':
+                    symSection.addByte((byte) 0x0e); // type
+                    symSection.addByte((byte) 0x01); // sect
+                    symSection.addWord(0); // desc
+                    symSection.addQWord(symbol.getValue());
+                    break;
+                case 'g':
+                    symSection.addByte((byte) 0x0f);
+                    symSection.addByte((byte) 0x01);
+                    symSection.addWord(0); // desc
+                    symSection.addQWord(symbol.getValue());
+                    break;
+            }
+        }
+        Collections.sort(lst, (Symbol s1, Symbol s2) -> {
+           Integer o1 = s1.getIndex();
+           Integer o2 = s2.getIndex();
+           return o1.compareTo(o2);
+        });
+        symSection.addByte((byte) 0x00);
+        for (Symbol symbol : Symbols.list) {
+            symSection.addBytes(symbol.getName().getBytes());
+            symSection.addByte((byte) 0x00);
+        }
+        return symSection.getBytes();
     }
     
     public void writeToFile(ObjectFile objectFile, File dest) {
@@ -231,14 +298,14 @@ public class Assembler {
     }
 
     public static void main(String[] args) {
-        if (args.length < 2) {
+        /*if (args.length < 2) {
             System.out.println("Usage: java assembler5.Assembler <sourcefile.asm> <objectfile.o>");
             return;
-        }
-        Assembler assembler = new Assembler();
-        File src = new File(args[0]);
-        File dest = new File(args[1]);
-        ObjectFile objectFile = assembler.assemble(src);
+        }*/
+        File src = new File(System.getProperty("user.home") + "/nasm/simple.asm");
+        File dest = new File(System.getProperty("user.dir") + "/simple.o");
+        Assembler assembler = new Assembler(src, dest);
+        ObjectFile objectFile = assembler.assemble();
         System.out.println(objectFile);
         assembler.writeToFile(objectFile, dest);
     }

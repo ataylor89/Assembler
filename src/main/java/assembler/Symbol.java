@@ -6,72 +6,72 @@ package assembler;
  */
 public class Symbol {
     private String name;
-    private int strx;
-    private byte type;
-    private byte sect;
-    private short desc;
+    private int index;
+    private char type;
+    private int sect;
     private long value;
+    private int size;
 
     public Symbol() {}
     
     public Symbol(String name) {
         this.name = name;
     }
-    
+
     /**
-     * @return the strx
+     * @return the name
      */
-    public int getStrx() {
-        return strx;
+    public String getName() {
+        return name;
     }
 
     /**
-     * @param strx the strx to set
+     * @param name the name to set
      */
-    public void setStrx(int strx) {
-        this.strx = strx;
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    /**
+     * @return the index
+     */
+    public int getIndex() {
+        return index;
+    }
+
+    /**
+     * @param index the index to set
+     */
+    public void setIndex(int index) {
+        this.index = index;
     }
 
     /**
      * @return the type
      */
-    public byte getType() {
+    public char getType() {
         return type;
     }
 
     /**
      * @param type the type to set
      */
-    public void setType(byte type) {
+    public void setType(char type) {
         this.type = type;
     }
 
     /**
      * @return the sect
      */
-    public byte getSect() {
+    public int getSect() {
         return sect;
     }
 
     /**
      * @param sect the sect to set
      */
-    public void setSect(byte sect) {
+    public void setSect(int sect) {
         this.sect = sect;
-    }
-
-    /**
-     * @return the desc
-     */
-    public short getDesc() {
-        return desc;
-    }
-
-    /**
-     * @param desc the desc to set
-     */
-    public void setDesc(short desc) {
-        this.desc = desc;
     }
 
     /**
@@ -89,16 +89,16 @@ public class Symbol {
     }
 
     /**
-     * @return the name
+     * @return the size
      */
-    public String getName() {
-        return name;
+    public int getSize() {
+        return size;
     }
 
     /**
-     * @param name the name to set
+     * @param size the size to set
      */
-    public void setName(String name) {
-        this.name = name;
+    public void setSize(int size) {
+        this.size = size;
     }
 }

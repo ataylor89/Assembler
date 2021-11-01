@@ -13,10 +13,14 @@ public class DataDirective {
     public DataDirective() {}
     
     public DataDirective(String directive) {
-        String[] tokens = directive.split("\\s+", 4);
+        String[] tokens = directive.split("\\s+", 3);
         for (int i = 0; i < tokens.length; i++) {
-            if (i == 0) 
-                this.setLabel(tokens[0]);
+            if (i == 0) {
+                String label = tokens[0];
+                if (label.endsWith(":"))
+                    label = label.substring(0, label.length()-1);
+                this.setLabel(label);
+            }
             if (i == 1)
                 this.setOpcode(tokens[1]);
             if (i == 2)

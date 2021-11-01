@@ -47,7 +47,14 @@ public class ByteArray {
         Arrays.fill(arr, 1, arr.length, (byte) 0);
         addBytes(arr);
     }
-
+    
+    public void addWord(int i) {
+        byte[] arr = new byte[WORD];
+        arr[0] = (byte) (i & 0xFF00);
+        arr[1] = (byte) (i & 0x00FF);
+        addBytes(arr);
+    } 
+           
     public void addDWord(byte b) {
         byte[] arr = new byte[DWORD];
         arr[0] = b;

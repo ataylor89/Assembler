@@ -1,5 +1,6 @@
 package assembler;
 
+import java.io.File;
 import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
@@ -9,90 +10,163 @@ import java.util.stream.Collectors;
  */
 public class AssemblyFile {
 
+    private File file;
     private String code;
     private String textSection;
     private String dataSection;
     private String bssSection;
     private String[] globals;
     private String[] externs;
-    private String[] instructions;
-    private String[] dataDirectives;
-    private String[] bssDirectives;
+    private Instruction[] instructions;
+    private DataDirective[] dataDirectives;
+    private BssDirective[] bssDirectives;
     private String[] symbols;
 
-    public void setCode(String code) {
-        this.code = code;
+    public AssemblyFile(File file) {
+        this.file = file;
     }
 
+    /**
+     * @return the file
+     */
+    public File getFile() {
+        return file;
+    }
+
+    /**
+     * @param file the file to set
+     */
+    public void setFile(File file) {
+        this.file = file;
+    }
+    
+    /**
+     * @return the code
+     */
     public String getCode() {
         return code;
     }
 
-    public void setTextSection(String textSection) {
-        this.textSection = textSection;
+    /**
+     * @param code the code to set
+     */
+    public void setCode(String code) {
+        this.code = code;
     }
 
+    /**
+     * @return the textSection
+     */
     public String getTextSection() {
         return textSection;
     }
 
+    /**
+     * @param textSection the textSection to set
+     */
+    public void setTextSection(String textSection) {
+        this.textSection = textSection;
+    }
+
+    /**
+     * @return the dataSection
+     */
+    public String getDataSection() {
+        return dataSection;
+    }
+
+    /**
+     * @param dataSection the dataSection to set
+     */
     public void setDataSection(String dataSection) {
         this.dataSection = dataSection;
     }
 
-    public String getDatatSection() {
-        return dataSection;
-    }
-
-    public void setBssSection(String bssSection) {
-        this.bssSection = bssSection;
-    }
-
+    /**
+     * @return the bssSection
+     */
     public String getBssSection() {
         return bssSection;
     }
 
-    public void setGlobals(String[] globals) {
-        this.globals = globals;
+    /**
+     * @param bssSection the bssSection to set
+     */
+    public void setBssSection(String bssSection) {
+        this.bssSection = bssSection;
     }
 
+    /**
+     * @return the globals
+     */
     public String[] getGlobals() {
         return globals;
     }
 
-    public void setExterns(String[] externs) {
-        this.externs = externs;
+    /**
+     * @param globals the globals to set
+     */
+    public void setGlobals(String[] globals) {
+        this.globals = globals;
     }
 
+    /**
+     * @return the externs
+     */
     public String[] getExterns() {
         return externs;
     }
 
-    public void setInstructions(String[] instructions) {
-        this.instructions = instructions;
+    /**
+     * @param externs the externs to set
+     */
+    public void setExterns(String[] externs) {
+        this.externs = externs;
     }
 
-    public String[] getInstructions() {
+    /**
+     * @return the instructions
+     */
+    public Instruction[] getInstructions() {
         return instructions;
     }
 
-    public void setDataDirectives(String[] dataDirectives) {
-        this.dataDirectives = dataDirectives;
+    /**
+     * @param instructions the instructions to set
+     */
+    public void setInstructions(Instruction[] instructions) {
+        this.instructions = instructions;
     }
 
-    public String[] getDataDirectives() {
+    /**
+     * @return the dataDirectives
+     */
+    public DataDirective[] getDataDirectives() {
         return dataDirectives;
     }
 
-    public void setBssDirectives(String[] bssDirectives) {
-        this.bssDirectives = bssDirectives;
+    /**
+     * @param dataDirectives the dataDirectives to set
+     */
+    public void setDataDirectives(DataDirective[] dataDirectives) {
+        this.dataDirectives = dataDirectives;
     }
 
-    public String[] getBssDirectives() {
+    /**
+     * @return the bssDirectives
+     */
+    public BssDirective[] getBssDirectives() {
         return bssDirectives;
     }
 
-     /**
+    /**
+     * @param bssDirectives the bssDirectives to set
+     */
+    public void setBssDirectives(BssDirective[] bssDirectives) {
+        this.bssDirectives = bssDirectives;
+    }
+
+    /**
      * @return the symbols
      */
     public String[] getSymbols() {
@@ -108,11 +182,11 @@ public class AssemblyFile {
     
     public int getSectionCount() {
         int num = 0;
-        if (textSection != null) 
+        if (getTextSection() != null) 
             num++;
-        if (dataSection != null) 
+        if (getDataSection() != null) 
             num++;
-        if (bssSection != null) 
+        if (getBssSection() != null) 
             num++;
         return num;
     }
@@ -121,21 +195,15 @@ public class AssemblyFile {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("Assembly file\n");
-        sb.append("Globals: " + Stream.of(globals).collect(Collectors.joining(" ")) + "\n");
-        sb.append("Externs: " + Stream.of(externs).collect(Collectors.joining(" ")) + "\n");
-        sb.append("Text section\n" + textSection + "\n");
-        if (dataSection != null) 
-            sb.append("Data section\n" + dataSection + "\n");
-        if (bssSection != null) 
-            sb.append("BSS section\n" + bssSection + "\n");
-        if (instructions != null)
-            sb.append("Instructions\n" + Stream.of(instructions).collect(Collectors.joining("\n")));
-        if (dataDirectives != null && dataDirectives.length > 0) 
-            sb.append("\nData directives\n" + Stream.of(dataDirectives).collect(Collectors.joining("\n")));
-        if (bssDirectives != null && bssDirectives.length > 0) 
-            sb.append("\nBSS directives\n" + Stream.of(bssDirectives).collect(Collectors.joining("\n")));
-        if (symbols != null && symbols.length > 0)
-            sb.append("\nSymbols\n" + Stream.of(symbols).collect(Collectors.joining("\n")));
+        sb.append("Globals: " + Stream.of(getGlobals()).collect(Collectors.joining(" ")) + "\n");
+        sb.append("Externs: " + Stream.of(getExterns()).collect(Collectors.joining(" ")) + "\n");
+        sb.append("Text section\n" + getTextSection() + "\n");
+        if (getDataSection() != null) 
+            sb.append("Data section\n" + getDataSection() + "\n");
+        if (getBssSection() != null) 
+            sb.append("BSS section\n" + getBssSection() + "\n");
+        if (getSymbols() != null && getSymbols().length > 0)
+            sb.append("\nSymbols\n" + Stream.of(getSymbols()).map(s->s.toString()).collect(Collectors.joining("\n")));
         return sb.toString();
     }
 }
