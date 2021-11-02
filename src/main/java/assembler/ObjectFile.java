@@ -45,7 +45,24 @@ public class ObjectFile {
     public void addSection(byte[] bytes, String name) {
         int start = file.getIndex();
         int end = file.getIndex() + bytes.length;
+        file.addBytes(bytes);      
+        Section section = new Section(name, start, end);
+        sections.add(section);
+    }
+    
+    public void addSection(byte[] bytes, String name, boolean padZeroes) {
+        int start = file.getIndex();
+        int end = file.getIndex() + bytes.length;
         file.addBytes(bytes);
+        
+        if (padZeroes) {
+            int n = 8 - (bytes.length % 8);
+            for (int i = 0; i < n; i++) {
+                file.addByte((byte) 0);
+                end++;
+            }
+        }
+        
         Section section = new Section(name, start, end);
         sections.add(section);
     }

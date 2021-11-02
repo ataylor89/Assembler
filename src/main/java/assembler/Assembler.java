@@ -10,33 +10,32 @@ import java.util.List;
 import java.util.Map;
 public class Assembler {
     
-    private File src, dest;
-    private ObjectFile objectFile;
-    private AssemblyFile assemblyFile;
+    private Parser parser;
 
-    public Assembler(File src, File dest) {
-        objectFile = new ObjectFile();
-        Parser parser = new Parser(src);
-        assemblyFile = parser.parse();
+    public Assembler() {
+        parser = new Parser();
     }
 
-    public ObjectFile assemble() {
+    public ObjectFile assemble(File src) {
+        ObjectFile objectFile = new ObjectFile();
+        AssemblyFile assemblyFile = parser.parse(src);
+        Symbols.init(assemblyFile);
         int numSections = assemblyFile.getSectionCount();
         byte[] header = assembleHeader(numSections);
         byte[] lcSegment64 = assembleLcSegment64();
         byte[] section64Text = assembleSection64Text();
         byte[] section64Data = assembleSection64Data();
         byte[] lcSymtab = assembleLcSymtab();
-        byte[] dataSection = assembleDataSection();
-        byte[] textSection = assembleTextSection();
+        byte[] dataSection = assembleDataSection(assemblyFile);
+        byte[] textSection = assembleTextSection(assemblyFile);
         byte[] symTable = assembleSymbolTable(textSection.length);
         objectFile.addSection(header, "MachO-64 header");  
         objectFile.addSection(lcSegment64, "Load command LC_SEGMENT_64");
         objectFile.addSection(section64Text, "SECTION_64 text");
         objectFile.addSection(section64Data, "SECTION_64 data");
         objectFile.addSection(lcSymtab, "LC_SYMTAB");
-        objectFile.addSection(textSection, "Text section");
-        objectFile.addSection(dataSection, "Data section");
+        objectFile.addSection(textSection, "Text section", true);
+        objectFile.addSection(dataSection, "Data section", true);
         objectFile.addSection(symTable, "Symbol table");
         return objectFile;
     }
@@ -115,11 +114,11 @@ public class Assembler {
         return lcSymtab.getBytes();
     }
     
-    public byte[] assembleTextSection() {
+    public byte[] assembleTextSection(AssemblyFile assemblyFile) {
         ByteArray textSection = new ByteArray();
-        Instruction[] instructions = assemblyFile.getInstructions();
+        String[] instructions = assemblyFile.getInstructions();
         for (int i = 0; i < instructions.length; i++) {
-            Instruction instruction = instructions[i];
+            Instruction instruction = new Instruction(instructions[i]);
             System.out.println("Instruction:\n" + instruction);
             Opcode opcode = Opcode.parse(instruction.getOpcode());
             String operand1 = instruction.getOperand1();
@@ -142,9 +141,6 @@ public class Assembler {
                     break;
             }
         }
-        int n = 8 - (textSection.getIndex() % 8);
-        for (int i = 0; i < n; i++)
-            textSection.addByte((byte) 0);
         return textSection.getBytes();
     }
     
@@ -209,24 +205,32 @@ public class Assembler {
         return new byte[] {(byte) 0x0f, (byte) 0x05};
     }
 
-    public byte[] assembleDataSection() {
+    public byte[] assembleDataSection(AssemblyFile assemblyFile) {
         ByteArray dataSection = new ByteArray();
-        DataDirective directives[] = assemblyFile.getDataDirectives();
+        String[] directives = assemblyFile.getDataDirectives();
         for (int i = 0; i < directives.length; i++) {      
-            DataDirective directive = directives[i];
+            DataDirective directive = new DataDirective(directives[i]);
             System.out.println(directive);
             Pseudoopcode opcode = Pseudoopcode.parse(directive.getOpcode());
+            String label = directive.getLabel();
+            String operand = directive.getOperand();
+            Symbol symbol = Symbols.map.get(label);
             switch (opcode) {
                 case DB:
-                    String operand = (String) directive.getOperand();
                     String value = (String) Expressions.eval(operand);
                     dataSection.addBytes(value.getBytes());
+                    symbol.setValue(Symbols.offset);
+                    symbol.setSize(value.length());
+                    symbol.setType('d');
+                    Symbols.offset += value.length();
+                    break;
+                case EQU:
+                    Integer num = (Integer) Expressions.eval(operand);
+                    symbol.setValue(num);
+                    symbol.setType('a');
                     break;
             }       
         }
-        int n = 8 - (dataSection.getIndex() % 8);
-        for (int i = 0; i < n; i++)
-            dataSection.addByte((byte) 0);
         return dataSection.getBytes();
     }
     
@@ -304,8 +308,8 @@ public class Assembler {
         }*/
         File src = new File(System.getProperty("user.home") + "/nasm/simple.asm");
         File dest = new File(System.getProperty("user.dir") + "/simple.o");
-        Assembler assembler = new Assembler(src, dest);
-        ObjectFile objectFile = assembler.assemble();
+        Assembler assembler = new Assembler();
+        ObjectFile objectFile = assembler.assemble(src);
         System.out.println(objectFile);
         assembler.writeToFile(objectFile, dest);
     }
