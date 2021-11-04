@@ -9,9 +9,9 @@ public class Expressions {
     public static Object eval(String expression) {
         if (expression == null)
             return null;
-        else if (Symbols.map.containsKey(expression)) {
+        else if (Symbols.isSymbol(expression)) {
             Symbol symbol = Symbols.map.get(expression);
-            if (symbol.getType() == 'a')
+            if (symbol.getType() == SymbolType.ABSOLUTE)
                 return (int) symbol.getValue();
             else
                 return symbol.getValue();

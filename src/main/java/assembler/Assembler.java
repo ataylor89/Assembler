@@ -109,174 +109,106 @@ public class Assembler {
     public byte[] assembleTextSection() {
         ByteArray textSection = new ByteArray();
         String[] instructions = assemblyFile.getInstructions();
-        for (int i = 0; i < instructions.length; i++) {
-            Instruction instruction = new Instruction(instructions[i]);
-            // System.out.println("Instruction:\n" + instruction);
+        for (String text : instructions) {
+            Instruction instruction = new Instruction(text);
             Opcode opcode = Opcode.parse(instruction.getOpcode());
             String operand1 = instruction.getOperand1();
             String operand2 = instruction.getOperand2();
             Object op1 = Expressions.eval(operand1);
             Object op2 = Expressions.eval(operand2);
-            byte[] bytes = null;
             switch (opcode) {
-                case MOV:
-                    bytes = assembleMov(op1, op2);
-                    textSection.addBytes(bytes);
-                    break;
-                case XOR:
-                    bytes = assembleXor(op1, op2);
-                    textSection.addBytes(bytes);
-                    break;
-                case SYSCALL:
-                    bytes = assembleSyscall();
-                    textSection.addBytes(bytes);
-                    break;
+                case MOV -> {
+                    if (op1 instanceof Register && op2 instanceof Long) {
+                        Register register = (Register) op1;
+                        Long num = (Long) op2;
+                        textSection.addBytes(Opcodes.getMovCode(register));
+                        textSection.addQWord(num, Endian.LITTLE); 
+                    }
+                    else if (op1 instanceof Register && op2 instanceof Integer) {
+                        Register register = (Register) op1;
+                        Register reg32 = Registers.map32.get(register);
+                        Integer num = (Integer) op2;
+                        textSection.addBytes(Opcodes.getMovCode(reg32));
+                        textSection.addDWord(num, Endian.LITTLE);
+                    }
+                }
+                case XOR -> {
+                    if (op1 instanceof Register && op2 instanceof Register) {
+                        Register register1 = (Register) op1;
+                        Register register2 = (Register) op2;
+                        textSection.addBytes(Opcodes.getXorCode(register1));
+                    }
+                }
+                case SYSCALL -> textSection.addBytes(Opcodes.getCode(Opcode.SYSCALL));
             }
         }
         return textSection.getBytes();
     }
     
-    public byte[] assembleMov(Object operand1, Object operand2) {
-        ByteArray byteArray = new ByteArray();
-        if (operand1 instanceof Register && operand2 instanceof Long) {
-            Register register = (Register) operand1;
-            Long num = (Long) operand2;
-            byteArray.addBytes(assembleMovCode(register));
-            byteArray.addQWord(num, Endian.LITTLE); 
-        }
-        else if (operand1 instanceof Register && operand2 instanceof Integer) {
-            Register register = (Register) operand1;
-            Register reg32 = Registers.map32.get(register);
-            Integer num = (Integer) operand2;
-            byteArray.addBytes(assembleMovCode(reg32));
-            byteArray.addDWord(num, Endian.LITTLE);
-        }
-        return byteArray.getBytes();
-    }
-
-    public byte[] assembleMovCode(Register register) {
-        switch (register) {
-            case RAX:
-                return new byte[] {(byte) 0x48, (byte) 0xb8};
-            case EAX:
-                return new byte[] {(byte) 0xb8};
-            case RDX:
-                return new byte[] {(byte) 0x48, (byte) 0xba};
-            case EDX:
-                return new byte[] {(byte) 0xba};
-            case RSI:
-                return new byte[] {(byte) 0x48, (byte) 0xbe};
-            case ESI:
-                return new byte[] {(byte) 0xbe};
-            case RDI:
-                return new byte[] {(byte) 0x48, (byte) 0xbf};
-            case EDI:
-                return new byte[] {(byte) 0xbf};
-        }
-        return new byte[] {};
-    }
-
-    public byte[] assembleXor(Object operand1, Object operand2) {
-        ByteArray byteArray = new ByteArray();
-        if (operand1 instanceof Register && operand2 instanceof Register) {
-            Register register1 = (Register) operand1;
-            Register register2 = (Register) operand2;
-            if (register1 == Register.RAX && register2 == Register.RAX) 
-                byteArray.addBytes(new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xc0});
-            else if (register1 == Register.RDI && register2 == Register.RDI)
-                byteArray.addBytes(new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xff});
-            else if (register1 == Register.RSI && register2 == Register.RSI)
-                byteArray.addBytes(new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xf6});
-            else if (register1 == Register.RDX && register2 == Register.RDX) 
-                byteArray.addBytes(new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xd2});
-        }
-        return byteArray.getBytes();
-    }
-
-    public byte[] assembleSyscall() {
-        return new byte[] {(byte) 0x0f, (byte) 0x05};
-    }
-
     public byte[] assembleDataSection() {
         ByteArray dataSection = new ByteArray();
         String[] directives = assemblyFile.getDataDirectives();
-        for (int i = 0; i < directives.length; i++) {      
-            DataDirective directive = new DataDirective(directives[i]);
-            // System.out.println(directive);
+        for (String text : directives) {
+            DataDirective directive = new DataDirective(text);
             Pseudoopcode opcode = Pseudoopcode.parse(directive.getOpcode());
             String label = directive.getLabel();
             String operand = directive.getOperand();
             Symbol symbol = Symbols.map.get(label);
             switch (opcode) {
-                case DB:
+                case DB -> {
                     String value = (String) Expressions.eval(operand);
                     dataSection.addBytes(value.getBytes());
-                    symbol.setValue(Symbols.offset);
+                    symbol.setValue((long) Symbols.offset);
                     symbol.setSize(value.length());
-                    symbol.setType('d');
+                    symbol.setType(SymbolType.DATA);
                     Symbols.offset += value.length();
-                    break;
-                case EQU:
+                }
+                case EQU -> {
                     Integer num = (Integer) Expressions.eval(operand);
-                    symbol.setValue(num);
-                    symbol.setType('a');
-                    break;
+                    symbol.setValue(num.longValue());
+                    symbol.setType(SymbolType.ABSOLUTE);
+                }
             }       
         }
         return dataSection.getBytes();
     }
-    
+        
     public byte[] assembleSymbolTable() {
-        int dataOffset = objectFile.getTextSection().length;
         ByteArray symSection = new ByteArray();
         symSection.addDWord(0x0c, Endian.LITTLE);
         symSection.addDWord(0x0e, Endian.BIG);
-        int strx = 1;
-        Map<Character, Integer> order = new HashMap<>();
-        order.put('d', 0);
-        order.put('a', 1);
-        order.put('g', 2);
-        List<Symbol> lst = Symbols.list;
-        Collections.sort(lst, (Symbol s1, Symbol s2) -> {
-            Integer o1 = order.get(s1.getType());
-            Integer o2 = order.get(s2.getType());
-            return o1.compareTo(o2);
-        });
-        for (int i = 0; i < lst.size(); i++) {
-            Symbol symbol = Symbols.list.get(i);            
-            symSection.addDWord(symbol.getIndex());
+        Symbols.list.sort(Symbols.SortOrders.symTable);
+        int dataOffset = objectFile.getTextSection().length;
+        for (Symbol symbol : Symbols.list) {          
+            symSection.addDWord(symbol.getStrx());
             switch (symbol.getType()) {
-                case 'd':
-                    symSection.addByte((byte) 0x0e); // type 
-                    symSection.addByte((byte) 0x02); // sect
-                    symSection.addWord(0); // desc
-                    symSection.addQWord(dataOffset + symbol.getValue());
-                    break;
-                case 'a':
-                    symSection.addByte((byte) 0x02); // type
-                    symSection.addByte((byte) 0x00); // sect
-                    symSection.addWord(0); // desc
-                    symSection.addQWord(symbol.getValue());
-                    break;
-                case 't':
+                case TEXT -> {
                     symSection.addByte((byte) 0x0e); // type
                     symSection.addByte((byte) 0x01); // sect
                     symSection.addWord(0); // desc
                     symSection.addQWord(symbol.getValue());
-                    break;
-                case 'g':
+                }
+                case DATA -> {
+                    symSection.addByte((byte) 0x0e); // type 
+                    symSection.addByte((byte) 0x02); // sect
+                    symSection.addWord(0); // desc
+                    symSection.addQWord(dataOffset + symbol.getValue());
+                }
+                case ABSOLUTE -> {
+                    symSection.addByte((byte) 0x02); // type
+                    symSection.addByte((byte) 0x00); // sect
+                    symSection.addWord(0); // desc
+                    symSection.addQWord(symbol.getValue());
+                }
+                case GLOBAL -> {
                     symSection.addByte((byte) 0x0f);
                     symSection.addByte((byte) 0x01);
                     symSection.addWord(0); // desc
                     symSection.addQWord(symbol.getValue());
-                    break;
+                }
             }
         }
-        Collections.sort(lst, (Symbol s1, Symbol s2) -> {
-           Integer o1 = s1.getIndex();
-           Integer o2 = s2.getIndex();
-           return o1.compareTo(o2);
-        });
+        Symbols.list.sort(Symbols.SortOrders.stringTable);
         symSection.addByte((byte) 0x00);
         for (Symbol symbol : Symbols.list) {
             symSection.addBytes(symbol.getName().getBytes());

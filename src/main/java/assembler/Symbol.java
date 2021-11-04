@@ -7,8 +7,9 @@ package assembler;
 public class Symbol {
     private String name;
     private int index;
-    private char type;
-    private int sect;
+    private int strx;
+    private SymbolType type;
+    private int section;
     private long value;
     private int size;
 
@@ -47,31 +48,45 @@ public class Symbol {
     }
 
     /**
+     * @return the strx
+     */
+    public int getStrx() {
+        return strx;
+    }
+
+    /**
+     * @param strx the strx to set
+     */
+    public void setStrx(int strx) {
+        this.strx = strx;
+    }
+
+    /**
      * @return the type
      */
-    public char getType() {
+    public SymbolType getType() {
         return type;
     }
 
     /**
      * @param type the type to set
      */
-    public void setType(char type) {
+    public void setType(SymbolType type) {
         this.type = type;
     }
 
     /**
-     * @return the sect
+     * @return the section
      */
-    public int getSect() {
-        return sect;
+    public int getSection() {
+        return section;
     }
 
     /**
-     * @param sect the sect to set
+     * @param section the section to set
      */
-    public void setSect(int sect) {
-        this.sect = sect;
+    public void setSection(int section) {
+        this.section = section;
     }
 
     /**
