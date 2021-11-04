@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 public class Parser {
-
+    
     public AssemblyFile parse(File file) {
         AssemblyFile assemblyFile = new AssemblyFile();
         String code = readFile(file);

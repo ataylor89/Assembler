@@ -1,100 +1,153 @@
 package assembler;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Iterator;
 public class ObjectFile {
 
-    private ByteArray file;
-
-    private class Section {
-        public String name;
-        public int start, end;
-
-        public Section(String name, int start, int end) {
-            this.name = name;
-            this.start = start;
-            this.end = end;
-        }
+    private byte[] header;
+    private byte[] lcSegment64;
+    private byte[] section64Text;
+    private byte[] section64Data;
+    private byte[] lcSymtab;
+    private byte[] dataSection;
+    private byte[] textSection;
+    private byte[] symTable;
+    
+    /**
+     * @return the header
+     */
+    public byte[] getHeader() {
+        return header;
     }
 
-    private List<Section> sections; 
-
-    public ObjectFile() {
-        file = new ByteArray();
-        sections = new ArrayList<Section>();
+    /**
+     * @param header the header to set
+     */
+    public void setHeader(byte[] header) {
+        this.header = header;
     }
 
-    public void setFile(ByteArray file) {
-        this.file = file;
+    /**
+     * @return the lcSegment64
+     */
+    public byte[] getLcSegment64() {
+        return lcSegment64;
+    }
+
+    /**
+     * @param lcSegment64 the lcSegment64 to set
+     */
+    public void setLcSegment64(byte[] lcSegment64) {
+        this.lcSegment64 = lcSegment64;
+    }
+
+    /**
+     * @return the section64Text
+     */
+    public byte[] getSection64Text() {
+        return section64Text;
+    }
+
+    /**
+     * @param section64Text the section64Text to set
+     */
+    public void setSection64Text(byte[] section64Text) {
+        this.section64Text = section64Text;
+    }
+
+    /**
+     * @return the section64Data
+     */
+    public byte[] getSection64Data() {
+        return section64Data;
+    }
+
+    /**
+     * @param section64Data the section64Data to set
+     */
+    public void setSection64Data(byte[] section64Data) {
+        this.section64Data = section64Data;
+    }
+
+    /**
+     * @return the lcSymtab
+     */
+    public byte[] getLcSymtab() {
+        return lcSymtab;
+    }
+
+    /**
+     * @param lcSymtab the lcSymtab to set
+     */
+    public void setLcSymtab(byte[] lcSymtab) {
+        this.lcSymtab = lcSymtab;
+    }
+
+    /**
+     * @return the dataSection
+     */
+    public byte[] getDataSection() {
+        return dataSection;
+    }
+
+    /**
+     * @param dataSection the dataSection to set
+     */
+    public void setDataSection(byte[] dataSection) {
+        this.dataSection = dataSection;
+    }
+
+    /**
+     * @return the textSection
+     */
+    public byte[] getTextSection() {
+        return textSection;
+    }
+
+    /**
+     * @param textSection the textSection to set
+     */
+    public void setTextSection(byte[] textSection) {
+        this.textSection = textSection;
+    }
+
+    /**
+     * @return the symTable
+     */
+    public byte[] getSymTable() {
+        return symTable;
+    }
+
+    /**
+     * @param symTable the symTable to set
+     */
+    public void setSymTable(byte[] symTable) {
+        this.symTable = symTable;
     }
     
-    public ByteArray getFile() {
-        return file;
+    public byte[] getBytes() {
+        ByteArray file = new ByteArray();
+        file.addBytes(header);
+        file.addBytes(lcSegment64);
+        file.addBytes(section64Text);
+        file.addBytes(section64Data);
+        file.addBytes(lcSymtab);
+        file.addBytes(textSection);
+        int n = 8 - (file.getIndex() % 8);
+        file.addBytes(pad(n));
+        file.addBytes(dataSection);
+        n = 8 - (file.getIndex() % 8);
+        file.addBytes(pad(n));
+        file.addBytes(symTable);
+        return file.getBytes();
     }
     
-    public void setSections(List<Section> sections) {
-        this.sections = sections;
+    private byte[] pad(int n) {
+        byte[] padding = new byte[n];
+        for (int i = 0; i < n; i++)
+            padding[i] = (byte) 0;
+        return padding;
     }
     
-    public List<Section> getSections() {
-        return sections;
-    }
-    
-    public void addSection(byte[] bytes, String name) {
-        int start = file.getIndex();
-        int end = file.getIndex() + bytes.length;
-        file.addBytes(bytes);      
-        Section section = new Section(name, start, end);
-        sections.add(section);
-    }
-    
-    public void addSection(byte[] bytes, String name, boolean padZeroes) {
-        int start = file.getIndex();
-        int end = file.getIndex() + bytes.length;
-        file.addBytes(bytes);
-        
-        if (padZeroes) {
-            int n = 8 - (bytes.length % 8);
-            for (int i = 0; i < n; i++) {
-                file.addByte((byte) 0);
-                end++;
-            }
-        }
-        
-        Section section = new Section(name, start, end);
-        sections.add(section);
-    }
-
-    public byte[] getSection(int index) {
-        Section section = sections.get(index);
-        return file.getBytes(section.start, section.end);
-    }
-
-    public byte[] getSection(String name) {
-        for (int i = 0; i < sections.size(); i++) 
-            if (sections.get(i).name.equals(name))
-                return getSection(i);
-        return null;
-    }
-
-    public String getSectionName(int index) {
-        return sections.get(index).name;
-    }
-
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("Object file (%d bytes)\n", file.getIndex()));
-        for (int i = 0; i < sections.size(); i++) {
-            Section section = sections.get(i);
-            byte[] bytes = getSection(i);
-            sb.append(section.name);
-            sb.append("\n");
-            sb.append(Bytes.hexstring(bytes));  
-            sb.append("\n");
-        }
-        return sb.toString();
+        return Bytes.hexstring(getBytes());
     }
 }
