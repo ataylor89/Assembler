@@ -149,7 +149,7 @@ public class Assembler {
                     if (op1 instanceof Register && op2 instanceof Register) {
                         Register register1 = (Register) op1;
                         Register register2 = (Register) op2;
-                        textSection.addBytes(Opcodes.getXorCode(register1));
+                        textSection.addBytes(Opcodes.getXorCode(register1, register2));
                     }
                 }
                 case SYSCALL -> textSection.addBytes(Opcodes.getCode(Opcode.SYSCALL));
