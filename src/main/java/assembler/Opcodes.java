@@ -77,18 +77,13 @@ public class Opcodes {
     }
     
     public static byte[] getXorCode(Register reg1, Register reg2) {
-        ByteArray code = new ByteArray();
         switch (reg1.size) {
             case 64:
-                code.addByte((byte) 0x48);
-                code.addByte((byte) 0x31);
-                code.addByte(SIB64[reg1.index][reg2.index]);
-                break;
+                return new byte[] {(byte) 0x48, (byte) 0x31, SIB64[reg1.index][reg2.index]};
             case 32:
-                code.addByte((byte) 0x31);
-                code.addByte(SIB32[reg1.index][reg2.index]);
-                break;                
+                return new byte[] {(byte) 0x31, SIB32[reg1.index][reg2.index]};
+            default:
+                return null;
         }
-        return code.getBytes();
     }
 }

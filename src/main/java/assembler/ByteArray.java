@@ -3,6 +3,7 @@ import java.util.Arrays;
 public class ByteArray {
     
     private byte[] bytes;
+    private int capacity;
     private int index;
 
     public static final int WORD = 2;
@@ -11,17 +12,18 @@ public class ByteArray {
     public static final int OWORD = 16;
 
     public ByteArray() {
-        bytes = new byte[1000];
-        index = 0;
+        this(100);  
     }
-
+    
     public ByteArray(int capacity) {
+        this.capacity = capacity;
         bytes = new byte[capacity];
         index = 0;
     }
 
-    public void resize(int amount) {
-        byte[] b = new byte[bytes.length + amount];
+    public void resize(int capacity) {
+        this.capacity = capacity;
+        byte[] b = new byte[capacity];
         for (int i = 0; i < bytes.length; i++)
             b[i] = bytes[i];
         bytes = b;
@@ -29,14 +31,14 @@ public class ByteArray {
 
     public void addByte(byte b) {
         if (index + 1 > bytes.length)
-            resize(1000);
+            resize(2*capacity);
         bytes[index] = b;
         index++;
     }
 
     public void addBytes(byte[] b) {
         if (index + b.length > bytes.length)
-            resize(1000);
+            resize(2*capacity);
         System.arraycopy(b, 0, bytes, index, b.length);
         index += b.length;
     }
@@ -129,6 +131,10 @@ public class ByteArray {
         return arr;
     }
 
+    public int getCapacity() {
+        return capacity;
+    }
+    
     public int getIndex() {
         return index;
     }

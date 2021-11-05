@@ -123,7 +123,7 @@ public class ObjectFile {
     }
     
     public byte[] getBytes() {
-        ByteArray file = new ByteArray();
+        ByteArray file = new ByteArray(1000);
         file.addBytes(header);
         file.addBytes(lcSegment64);
         file.addBytes(section64Text);
