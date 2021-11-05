@@ -108,15 +108,14 @@ public class Assembler {
         int symOffset = 0x120 + ts.length + ds.length + padding + 8;
         int numSymbols = Symbols.list.size();
         int strOffset = symOffset + numSymbols * 0x10;
-        int strsize = 1;
-        strsize = Symbols.list.stream().map(s -> s.getName().length() + 1).reduce(strsize, Integer::sum);
+        int strSize = Symbols.stringTable.length();
         ByteArray lcSymtab = new ByteArray();
         lcSymtab.addDWord(0x02);                    // cmd
         lcSymtab.addDWord(0x18);                    // cmd size
         lcSymtab.addDWord(symOffset);               // symoff
         lcSymtab.addDWord(numSymbols);              // nsyms
         lcSymtab.addDWord(strOffset);               // stroff
-        lcSymtab.addDWord(strsize);                 // strsize
+        lcSymtab.addDWord(strSize);                 // strsize
         return lcSymtab.getBytes();
     }
     
