@@ -15,6 +15,7 @@ public class Symbols {
     public static List<Symbol> list = new ArrayList<>();
     public static Map<String, Symbol> map = new HashMap<>();
     public static int offset = 0;
+    public static String stringTable;
     
     class SortOrders {
         public static Comparator<Symbol> symTable = (Symbol s1, Symbol s2) -> {
@@ -89,6 +90,13 @@ public class Symbols {
                 }
             }
         }
+        StringBuilder sb = new StringBuilder();
+        sb.append('\0');
+        for (Symbol symbol : list) {
+            sb.append(symbol.getName());
+            sb.append('\0');
+        }
+        stringTable = sb.toString();
     }
     
     public static boolean isSymbol(String expression) {

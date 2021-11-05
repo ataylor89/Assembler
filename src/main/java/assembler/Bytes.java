@@ -2,19 +2,29 @@ package assembler;
 
 public class Bytes {
 
-    public static byte[] littleendian(long val) {
-        byte[] bytes = new byte[8];
-        long bitmask = 0xFF;
+    public static byte[] littleendian(short val) {
+        byte[] bytes = new byte[2];
+        int bitmask = 0xFF;
         for (int i = 0; i < bytes.length; i++) {
             bytes[i] = (byte) ((val & bitmask) >> 8 * i);
             bitmask <<= 8;
         }
         return bytes;
     }
-
+    
     public static byte[] littleendian(int val) {
         byte[] bytes = new byte[4];
         int bitmask = 0xFF;
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) ((val & bitmask) >> 8 * i);
+            bitmask <<= 8;
+        }
+        return bytes;
+    }
+    
+    public static byte[] littleendian(long val) {
+        byte[] bytes = new byte[8];
+        long bitmask = 0xFF;
         for (int i = 0; i < bytes.length; i++) {
             bytes[i] = (byte) ((val & bitmask) >> 8 * i);
             bitmask <<= 8;
@@ -57,61 +67,46 @@ public class Bytes {
         }
         return bytes;
     }
-
-    public static byte[] littleendian(long val, int size) {
-        byte[] bytes = new byte[size];
-        long bitmask = 0xFF;
-        for (int i = 0; i < size; i++) {
-            bytes[i] = (byte) ((val & bitmask) >> 8 * i);
-            bitmask <<= 8;
-        }
-        return bytes;
+    
+    public static byte[] bytes(short val, Endian e) {
+        return switch (e) {
+            case BIG -> bigendian(val);
+            case LITTLE -> littleendian(val);
+            default -> null;
+        };
     }
-
+    
     public static byte[] bytes(int val, Endian e) {
-        switch (e) {
-            case BIG:
-                return bigendian(val);
-            case LITTLE:
-                return littleendian(val);
-            default:
-                return null;
-        }
+        return switch (e) {
+            case BIG -> bigendian(val);
+            case LITTLE -> littleendian(val);
+            default -> null;
+        };
     }
 
     public static byte[] bytes(long val, Endian e) {
-        switch (e) {
-            case BIG:
-                return bigendian(val);
-            case LITTLE:
-                return littleendian(val);
-            default:
-                return null;
-        }
+        return switch (e) {
+            case BIG -> bigendian(val);
+            case LITTLE -> littleendian(val);
+            default -> null;
+        };
     }
 
-    public static int size(long val) {
-        long mask = 0xFF << 8 * 7;
-        for (int i = 7; i > 0; i++) {
-            if ((val & mask) != 0) {
-                return i + 1;
-            }
-            mask >>= 8;
-        }
-        return 1;
+    public static byte[] nbytes(byte b, int n) {
+        byte[] bytes = new byte[n];
+        for (int i = 0; i < n; n++)
+            bytes[i] = b;
+        return bytes;
     }
-
-    public static int size(int val) {
-        int mask = 0xFF << 8 * 3;
-        for (int i = 3; i > 0; i++) {
-            if ((val & mask) != 0) {
-                return i + 1;
-            }
-            mask >>= 8;
-        }
-        return 1;
+    
+    public static byte[] nbytes(int val, int n) {
+        byte[] bytes = new byte[n];
+        byte b = (byte) (val & 0xFF);
+        for (int i = 0; i < n; n++)
+            bytes[i] = b;
+        return bytes;
     }
-
+    
     public static String hexstring(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < bytes.length; i++) {
@@ -122,5 +117,4 @@ public class Bytes {
         }
         return sb.toString();
     }
-
 }

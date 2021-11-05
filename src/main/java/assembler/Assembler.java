@@ -2,10 +2,6 @@ package assembler;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 public class Assembler {
     
     private AssemblyFile assemblyFile;
@@ -62,15 +58,19 @@ public class Assembler {
     }
 
     public byte[] assembleSection64Text() {
+        byte[] ts = objectFile.getTextSection();
+        byte[] ds = objectFile.getDataSection();
+        int padding = 8 - (ts.length % 8) + 8 - (ds.length % 8);
+        int reloffset = 0x120 + ts.length + ds.length + padding;
         ByteArray section64 = new ByteArray();
         section64.addOWord("__text");               // section name
         section64.addOWord("__TEXT");               // segment name
         section64.addQWord(0);                      // address 
-        section64.addQWord(0x25, Endian.LITTLE);    // size
-        section64.addDWord(0x120, Endian.LITTLE);   // offset
+        section64.addQWord(ts.length);              // size
+        section64.addDWord(0x120);                  // offset
         section64.addDWord(0);                      // align
-        section64.addDWord(0x0158, Endian.LITTLE);  // reloffset
-        section64.addDWord(0x01, Endian.LITTLE);    // nreloc
+        section64.addDWord(reloffset);              // reloffset
+        section64.addDWord(0x01);                   // nreloc
         section64.addDWord(0x00070080, Endian.BIG); // flags
         section64.addDWord(0);                      // reserved1
         section64.addDWord(0);                      // reserved2
@@ -79,12 +79,18 @@ public class Assembler {
     }
     
     public byte[] assembleSection64Data() {
+        byte[] ts = objectFile.getTextSection();
+        byte[] ds = objectFile.getDataSection();       
+        int address = ts.length;
+        int size = ds.length;
+        int padding = 8 - (ts.length % 8);
+        int offset = 0x120 + ts.length + padding;
         ByteArray section64 = new ByteArray();
         section64.addOWord("__data");               // section name
         section64.addOWord("__DATA");               // segment name
-        section64.addQWord(0x25);                   // address
-        section64.addQWord(0x0b);                   // size
-        section64.addDWord(0x148);                  // offset
+        section64.addQWord(address);                // address
+        section64.addQWord(size);                   // size
+        section64.addDWord(offset);                 // offset
         section64.addDWord(0);                      // align
         section64.addDWord(0);                      // reloffset
         section64.addDWord(0);                      // nreloc
@@ -96,13 +102,21 @@ public class Assembler {
     }
     
     public byte[] assembleLcSymtab() {
+        byte[] ts = objectFile.getTextSection();
+        byte[] ds = objectFile.getDataSection();       
+        int padding = 8 - (ts.length % 8) + 8 - (ds.length % 8);
+        int symOffset = 0x120 + ts.length + ds.length + padding + 8;
+        int numSymbols = Symbols.list.size();
+        int strOffset = symOffset + numSymbols * 0x10;
+        int strsize = 1;
+        strsize = Symbols.list.stream().map(s -> s.getName().length() + 1).reduce(strsize, Integer::sum);
         ByteArray lcSymtab = new ByteArray();
         lcSymtab.addDWord(0x02);                    // cmd
         lcSymtab.addDWord(0x18);                    // cmd size
-        lcSymtab.addDWord(0x160);                   // symoff
-        lcSymtab.addDWord(0x03);                    // nsyms
-        lcSymtab.addDWord(0x190);                   // stroff
-        lcSymtab.addDWord(0x13);                    // strsize
+        lcSymtab.addDWord(symOffset);               // symoff
+        lcSymtab.addDWord(numSymbols);              // nsyms
+        lcSymtab.addDWord(strOffset);               // stroff
+        lcSymtab.addDWord(strsize);                 // strsize
         return lcSymtab.getBytes();
     }
     
@@ -175,45 +189,41 @@ public class Assembler {
         
     public byte[] assembleSymbolTable() {
         ByteArray symSection = new ByteArray();
+        Symbols.list.sort(Symbols.SortOrders.symTable);
+        int offset = objectFile.getTextSection().length;
         symSection.addDWord(0x0c, Endian.LITTLE);
         symSection.addDWord(0x0e, Endian.BIG);
-        Symbols.list.sort(Symbols.SortOrders.symTable);
-        int dataOffset = objectFile.getTextSection().length;
-        for (Symbol symbol : Symbols.list) {          
+        for (Symbol symbol : Symbols.list) {      
+            long value = symbol.getValue();
             symSection.addDWord(symbol.getStrx());
             switch (symbol.getType()) {
                 case TEXT -> {
-                    symSection.addByte((byte) 0x0e); // type
-                    symSection.addByte((byte) 0x01); // sect
-                    symSection.addWord(0); // desc
-                    symSection.addQWord(symbol.getValue());
+                    symSection.addByte((byte) 0x0e);    // type
+                    symSection.addByte((byte) 0x01);    // sect
+                    symSection.addWord(0);              // desc
+                    symSection.addQWord(value);
                 }
                 case DATA -> {
-                    symSection.addByte((byte) 0x0e); // type 
-                    symSection.addByte((byte) 0x02); // sect
-                    symSection.addWord(0); // desc
-                    symSection.addQWord(dataOffset + symbol.getValue());
+                    symSection.addByte((byte) 0x0e);    // type 
+                    symSection.addByte((byte) 0x02);    // sect
+                    symSection.addWord(0);              // desc
+                    symSection.addQWord(offset + value);
                 }
                 case ABSOLUTE -> {
-                    symSection.addByte((byte) 0x02); // type
-                    symSection.addByte((byte) 0x00); // sect
-                    symSection.addWord(0); // desc
-                    symSection.addQWord(symbol.getValue());
+                    symSection.addByte((byte) 0x02);    // type
+                    symSection.addByte((byte) 0x00);    // sect
+                    symSection.addWord(0);              // desc
+                    symSection.addQWord(value);
                 }
                 case GLOBAL -> {
                     symSection.addByte((byte) 0x0f);
                     symSection.addByte((byte) 0x01);
-                    symSection.addWord(0); // desc
-                    symSection.addQWord(symbol.getValue());
+                    symSection.addWord(0);              // desc
+                    symSection.addQWord(value);
                 }
             }
         }
-        Symbols.list.sort(Symbols.SortOrders.stringTable);
-        symSection.addByte((byte) 0x00);
-        for (Symbol symbol : Symbols.list) {
-            symSection.addBytes(symbol.getName().getBytes());
-            symSection.addByte((byte) 0x00);
-        }
+        symSection.addBytes(Symbols.stringTable.getBytes());
         return symSection.getBytes();
     }
     

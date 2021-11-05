@@ -131,19 +131,12 @@ public class ObjectFile {
         file.addBytes(lcSymtab);
         file.addBytes(textSection);
         int n = 8 - (file.getIndex() % 8);
-        file.addBytes(pad(n));
+        file.addBytes(Bytes.nbytes(0, n));
         file.addBytes(dataSection);
         n = 8 - (file.getIndex() % 8);
-        file.addBytes(pad(n));
+        file.addBytes(Bytes.nbytes(0, n));
         file.addBytes(symTable);
         return file.getBytes();
-    }
-    
-    private byte[] pad(int n) {
-        byte[] padding = new byte[n];
-        for (int i = 0; i < n; i++)
-            padding[i] = (byte) 0;
-        return padding;
     }
     
     @Override
