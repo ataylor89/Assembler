@@ -74,27 +74,6 @@ public class Opcodes {
             default:
                 return null;
         }
-            
-        /*switch (reg) {
-            case RAX:
-                return new byte[] {(byte) 0x48, (byte) 0xb8};
-            case EAX:
-                return new byte[] {(byte) 0xb8};
-            case RDX:
-                return new byte[] {(byte) 0x48, (byte) 0xba};
-            case EDX:
-                return new byte[] {(byte) 0xba};
-            case RSI:
-                return new byte[] {(byte) 0x48, (byte) 0xbe};
-            case ESI:
-                return new byte[] {(byte) 0xbe};
-            case RDI:
-                return new byte[] {(byte) 0x48, (byte) 0xbf};
-            case EDI:
-                return new byte[] {(byte) 0xbf};
-            default:
-                return null;
-        }*/
     }
     
     public static byte[] getXorCode(Register reg1, Register reg2) {
@@ -111,18 +90,5 @@ public class Opcodes {
                 break;                
         }
         return code.getBytes();
-  
-        /*switch () {
-            case RAX:
-                return new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xc0};
-            case RDI:    
-                return new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xff};
-            case RSI:
-                return new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xf6};
-            case RDX:
-               return new byte[] {(byte) 0x48, (byte) 0x31, (byte) 0xd2};
-            default:
-                return null;
-        }*/
     }
 }
