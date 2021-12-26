@@ -137,7 +137,7 @@ public class Assembler {
         return lcSymtab.getBytes();
     }
     
-    public byte[] assembleTextSection() {
+    private byte[] assembleTextSection() {
         ByteArray textSection = new ByteArray();
         String[] instructions = assemblyFile.getInstructions();
         for (String text : instructions) {
