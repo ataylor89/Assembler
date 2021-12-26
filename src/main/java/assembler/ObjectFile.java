@@ -1,4 +1,6 @@
 package assembler;
+// https://opensource.apple.com/source/xnu/xnu-4903.221.2/EXTERNAL_HEADERS/mach-o/loader.h.auto.html
+// https://opensource.apple.com/source/xnu/xnu-4570.71.2/EXTERNAL_HEADERS/mach-o/nlist.h.auto.html
 public class ObjectFile {
 
     private byte[] header;
@@ -9,6 +11,7 @@ public class ObjectFile {
     private byte[] dataSection;
     private byte[] textSection;
     private byte[] symTable;
+    private byte[] stringTable;
     
     /**
      * @return the header
@@ -121,6 +124,20 @@ public class ObjectFile {
     public void setSymTable(byte[] symTable) {
         this.symTable = symTable;
     }
+
+    /**
+     * @return the stringTable
+     */
+    public byte[] getStringTable() {
+        return stringTable;
+    }
+
+    /**
+     * @param stringTable the stringTable to set
+     */
+    public void setStringTable(byte[] stringTable) {
+        this.stringTable = stringTable;
+    }
     
     public byte[] getBytes() {
         ByteArray file = new ByteArray(1000);
@@ -130,17 +147,53 @@ public class ObjectFile {
         file.addBytes(section64Data);
         file.addBytes(lcSymtab);
         file.addBytes(textSection);
-        int n = 8 - (file.getIndex() % 8);
-        file.addBytes(Bytes.nbytes(0, n));
+        pad8(file);
         file.addBytes(dataSection);
-        n = 8 - (file.getIndex() % 8);
-        file.addBytes(Bytes.nbytes(0, n));
+        pad8(file);
         file.addBytes(symTable);
+        file.addBytes(stringTable);
         return file.getBytes();
+    }
+    
+    public void pad8(ByteArray file) {
+        byte[] padding = new byte[8 - (file.getIndex() % 8)];
+        for (int i = 0; i < padding.length; i++)
+            padding[i] = 0;
+        file.addBytes(padding);
     }
     
     @Override
     public String toString() {
-        return Bytes.hexstring(getBytes());
+        StringBuilder sb = new StringBuilder();
+        sb
+            .append(String.format("Macho64 header: (%d bytes)\n", header.length))
+            .append(Bytes.hexstring(header))
+            .append("\n")
+            .append(String.format("LC_SEGMENT_64: (%d bytes)\n", lcSegment64.length))
+            .append(Bytes.hexstring(lcSegment64))
+            .append("\n")
+            .append(String.format("SECTION_64_TEXT: (%d bytes)\n", section64Text.length))
+            .append(Bytes.hexstring(section64Text))
+            .append("\n")
+            .append(String.format("SECTION_64_DATA: (%d bytes)\n", section64Data.length))
+            .append(Bytes.hexstring(section64Data))
+            .append("\n")
+            .append(String.format("LC_SYMTAB: (%d bytes)\n", lcSymtab.length))
+            .append(Bytes.hexstring(lcSymtab))
+            .append("\n")
+            .append(String.format("Text section: (%d bytes)\n", textSection.length))
+            .append(Bytes.hexstring(textSection))
+            .append("\n")
+            .append(String.format("Data section: (%d bytes)\n", dataSection.length))
+            .append(Bytes.hexstring(dataSection))
+            .append("\n")
+            .append(String.format("Symbol table: (%d bytes)\n", symTable.length))
+            .append(Bytes.hexstring(symTable))
+            .append("\n")
+            .append(String.format("String table: (%d bytes)\n", stringTable.length))
+            .append(Bytes.hexstring(stringTable))
+            .append("\n");
+        return sb.toString();
+        // return Bytes.hexstring(getBytes());
     }
 }

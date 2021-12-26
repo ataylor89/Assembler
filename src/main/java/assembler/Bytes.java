@@ -109,11 +109,15 @@ public class Bytes {
     
     public static String hexstring(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < bytes.length; i++) {
-            sb.append(String.format("%02x", bytes[i]));
-            if (i < bytes.length - 1) {
-                sb.append(" ");
+        int i = 0;
+        while (i < bytes.length) {
+            for (int j = 0; j < 16 && (i+j) < bytes.length; j++) {
+                sb.append(String.format("%02x", bytes[i+j]));
+                if (j % 2 == 1)
+                    sb.append(" ");
             }
+            sb.append("\n");
+            i += 16;
         }
         return sb.toString();
     }

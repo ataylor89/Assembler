@@ -89,15 +89,12 @@ public class AssemblyFile {
 
     public int getSectionCount() {
         int num = 0;
-        if (textSection != null) {
+        if (textSection != null) 
             num++;
-        }
-        if (dataSection != null) {
+        if (dataSection != null) 
             num++;
-        }
-        if (bssSection != null) {
+        if (bssSection != null) 
             num++;
-        }
         return num;
     }
 
@@ -107,20 +104,19 @@ public class AssemblyFile {
         sb.append("Assembly file\n");
         sb.append("Globals: " + Stream.of(globals).collect(Collectors.joining(" ")) + "\n");
         sb.append("Externs: " + Stream.of(externs).collect(Collectors.joining(" ")) + "\n");
-        sb.append("Text section\n" + textSection + "\n");
-        if (dataSection != null) {
+        if (textSection != null)
+            sb.append("Text section\n" + textSection + "\n");
+        if (dataSection != null) 
             sb.append("Data section\n" + dataSection + "\n");
-        }
-        if (bssSection != null) {
+        if (bssSection != null) 
             sb.append("BSS section\n" + bssSection + "\n");
-        }
-        sb.append("Instructions\n" + Stream.of(instructions).collect(Collectors.joining("\n")));
+        /*sb.append("Instructions\n" + Stream.of(instructions).collect(Collectors.joining("\n")));
         if (dataDirectives != null && dataDirectives.length > 0) {
             sb.append("Data directives\n" + Stream.of(dataDirectives).collect(Collectors.joining("\n")));
         }
         if (bssDirectives != null && bssDirectives.length > 0) {
             sb.append("BSS directives\n" + Stream.of(bssDirectives).collect(Collectors.joining("\n")));
-        }
+        }*/
         return sb.toString();
     }
 }

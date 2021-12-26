@@ -134,13 +134,13 @@ public class Parser {
     }
 
     public static void main(String[] args) {
-        if (args.length < 1) {
+        /*if (args.length < 1) {
             System.out.println("Usage: java assembler5.Parser <sourcefile.asm>");
             return;
-        }
+        }*/
         Parser parser = new Parser();
-        File file = new File(args[0]);
-        AssemblyFile assemblyFile = parser.parse(file);
+        File src = new File("src/main/resources/simple.asm");
+        AssemblyFile assemblyFile = parser.parse(src);
         System.out.println(assemblyFile);
     }
 }

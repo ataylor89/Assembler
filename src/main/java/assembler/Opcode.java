@@ -14,7 +14,7 @@ public enum Opcode {
     
     public static boolean isOpcode(String text) {
         try {
-            Opcode opcode = Opcode.valueOf(text.toUpperCase());
+            Opcode.valueOf(text.toUpperCase());
             return true;
         } catch (IllegalArgumentException e) {
             return false;
@@ -23,8 +23,7 @@ public enum Opcode {
     
     public static Opcode parse(String text) {
         try {
-            Opcode opcode = Opcode.valueOf(text.toUpperCase());
-            return opcode;
+            return Opcode.valueOf(text.toUpperCase());
         } catch (IllegalArgumentException e) {
             return null;
         }
