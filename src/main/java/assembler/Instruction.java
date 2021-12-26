@@ -18,29 +18,29 @@ public class Instruction {
         for (int i = 0; i < tokens.length; i++) {
             if (i == 0) {
                 if (Opcode.isOpcode(tokens[0]))
-                    this.setOpcode(tokens[0]);
+                    this.setOpcode(tokens[0].trim());
                 else {
                     String label = tokens[0];
                     if (label.endsWith(":"))
                         label = label.substring(0, label.length()-1);
-                    this.setLabel(label);
+                    this.setLabel(label.trim());
                 }
             }
             if (i == 1) {
                 if (Opcode.isOpcode(tokens[1]))
-                    this.setOpcode(tokens[1]);
+                    this.setOpcode(tokens[1].trim());
                 else if (Opcode.isOpcode(tokens[0]))
-                    this.setOperand1(tokens[1]);
+                    this.setOperand1(tokens[1].trim());
             }
             if (i == 2) {
                 if (Opcode.isOpcode(tokens[1]))
-                    this.setOperand1(tokens[2]);
+                    this.setOperand1(tokens[2].trim());
                 else if (Opcode.isOpcode(tokens[0]))
-                    this.setOperand2(tokens[2]);
+                    this.setOperand2(tokens[2].trim());
             }
             if (i == 3) {
                 if (Opcode.isOpcode(tokens[1]))
-                    this.setOperand2(tokens[3]);
+                    this.setOperand2(tokens[3].trim());
             }
         }
     }

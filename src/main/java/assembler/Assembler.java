@@ -2,31 +2,48 @@ package assembler;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 public class Assembler {
     
+    private File src, dest;
     private AssemblyFile assemblyFile;
     private ObjectFile objectFile;
 
-    public Assembler(File src) {
-        Parser parser = new Parser();
-        assemblyFile = parser.parse(src);
-        objectFile = new ObjectFile();
+    public Assembler(File src, File dest) {
+        this.src = src;
+        this.dest = dest;
     }
 
+    public AssemblyFile parse() {
+        if (assemblyFile == null) {
+            Parser parser = new Parser();
+            assemblyFile = parser.parse(src);
+        }
+        return assemblyFile;
+    }
+    
     public ObjectFile assemble() {
-        Symbols.init(assemblyFile);
-        objectFile.setDataSection(assembleDataSection());
-        objectFile.setTextSection(assembleTextSection());
-        objectFile.setHeader(assembleHeader());
-        objectFile.setLcSegment64(assembleLcSegment64());
-        objectFile.setSection64Text(assembleSection64Text());
-        objectFile.setSection64Data(assembleSection64Data());
-        objectFile.setLcSymtab(assembleLcSymtab());
-        objectFile.setSymTable(assembleSymbolTable());
+        if (objectFile == null) {
+            objectFile = new ObjectFile();
+            assemblyFile = parse();        
+            Symbols.init(assemblyFile);            
+            objectFile.setDataSection(assembleDataSection());
+            objectFile.setTextSection(assembleTextSection());
+            objectFile.setHeader(assembleHeader());
+            objectFile.setLcSegment64(assembleLcSegment64());
+            objectFile.setSection64Text(assembleSection64Text());
+            objectFile.setSection64Data(assembleSection64Data());
+            objectFile.setStringTable(assembleStringTable());
+            objectFile.setLcSymtab(assembleLcSymtab());
+            objectFile.setSymTable(assembleSymbolTable());
+            return objectFile;
+        }
         return objectFile;
     }
     
-    public byte[] assembleHeader() {
+    private byte[] assembleHeader() {
         int numLoadCommands = assemblyFile.getSectionCount();
         ByteArray header = new ByteArray();
         header.addBytes(new byte[] {(byte) 0xcf, (byte) 0xfa, (byte) 0xed, (byte) 0xfe}); // magic number
@@ -40,16 +57,17 @@ public class Assembler {
         return header.getBytes();
     }
    
-    public byte[] assembleLcSegment64() {
+    private byte[] assembleLcSegment64() {
         int numSections = assemblyFile.getSectionCount();
+        int fileSize = objectFile.getTextSection().length + objectFile.getDataSection().length;
         ByteArray loadCommand = new ByteArray();
         loadCommand.addBytes(new byte[] {(byte) 0x19, (byte) 0x00, (byte) 0x00, (byte) 0x00}); // cmd
         loadCommand.addBytes(new byte[] {(byte) 0xe8, (byte) 0x00, (byte) 0x00, (byte) 0x00}); // cmdsize
         loadCommand.addOWord((byte) 0);                                                        // segname
         loadCommand.addQWord((byte) 0);                                                        // vmaddr
-        loadCommand.addQWord((byte) 0x33);                                                     // vmsize
+        loadCommand.addQWord((byte) 0x35);                                                     // vmsize
         loadCommand.addQWord(0x120, Endian.LITTLE);                                            // fileoffset
-        loadCommand.addQWord((byte) 0x33);                                                     // file size
+        loadCommand.addQWord((byte) 0x35);                                                     // file size
         loadCommand.addDWord((byte) 0x07);                                                     // maxprot
         loadCommand.addDWord((byte) 0x07);                                                     // initprot
         loadCommand.addDWord((byte) numSections);                                              // number of sections
@@ -57,7 +75,7 @@ public class Assembler {
         return loadCommand.getBytes();
     }
 
-    public byte[] assembleSection64Text() {
+    private byte[] assembleSection64Text() {
         byte[] ts = objectFile.getTextSection();
         byte[] ds = objectFile.getDataSection();
         int padding = 8 - (ts.length % 8) + 8 - (ds.length % 8);
@@ -78,7 +96,7 @@ public class Assembler {
         return section64.getBytes();
     }
     
-    public byte[] assembleSection64Data() {
+    private byte[] assembleSection64Data() {
         byte[] ts = objectFile.getTextSection();
         byte[] ds = objectFile.getDataSection();       
         int address = ts.length;
@@ -101,14 +119,14 @@ public class Assembler {
         return section64.getBytes();           
     }
     
-    public byte[] assembleLcSymtab() {
+    private byte[] assembleLcSymtab() {
         byte[] ts = objectFile.getTextSection();
         byte[] ds = objectFile.getDataSection();       
         int padding = 8 - (ts.length % 8) + 8 - (ds.length % 8);
         int symOffset = 0x120 + ts.length + ds.length + padding + 8;
-        int numSymbols = Symbols.list.size();
+        int numSymbols = Symbols.map.keySet().size();
         int strOffset = symOffset + numSymbols * 0x10;
-        int strSize = Symbols.stringTable.length();
+        int strSize = objectFile.getStringTable().length;
         ByteArray lcSymtab = new ByteArray();
         lcSymtab.addDWord(0x02);                    // cmd
         lcSymtab.addDWord(0x18);                    // cmd size
@@ -144,6 +162,13 @@ public class Assembler {
                         textSection.addBytes(Opcodes.getMovCode(reg32));
                         textSection.addDWord(num, Endian.LITTLE);
                     }
+                    else if (op1 instanceof Register && op2 instanceof Symbol) {
+                        Register register = (Register) op1;
+                        Symbol symbol = (Symbol) op2;
+                        Long num = (long) symbol.getValue();
+                        textSection.addBytes(Opcodes.getMovCode(register));
+                        textSection.addQWord(num, Endian.LITTLE); 
+                    }
                 }
                 case XOR -> {
                     if (op1 instanceof Register && op2 instanceof Register) {
@@ -158,75 +183,49 @@ public class Assembler {
         return textSection.getBytes();
     }
     
-    public byte[] assembleDataSection() {
+    private byte[] assembleDataSection() {
         ByteArray dataSection = new ByteArray();
         String[] directives = assemblyFile.getDataDirectives();
         for (String text : directives) {
             DataDirective directive = new DataDirective(text);
             Pseudoopcode opcode = Pseudoopcode.parse(directive.getOpcode());
-            String label = directive.getLabel();
             String operand = directive.getOperand();
-            Symbol symbol = Symbols.map.get(label);
             switch (opcode) {
                 case DB -> {
                     String value = (String) Expressions.eval(operand);
                     dataSection.addBytes(value.getBytes());
-                    symbol.setValue((long) Symbols.offset);
-                    symbol.setSize(value.length());
-                    symbol.setType(SymbolType.DATA);
-                    Symbols.offset += value.length();
-                }
-                case EQU -> {
-                    Integer num = (Integer) Expressions.eval(operand);
-                    symbol.setValue(num.longValue());
-                    symbol.setType(SymbolType.ABSOLUTE);
                 }
             }       
         }
         return dataSection.getBytes();
     }
         
-    public byte[] assembleSymbolTable() {
+    private byte[] assembleSymbolTable() {
+        // https://opensource.apple.com/source/xnu/xnu-4570.71.2/EXTERNAL_HEADERS/mach-o/nlist.h.auto.html
         ByteArray symSection = new ByteArray();
-        Symbols.list.sort(Symbols.SortOrders.symTable);
-        int offset = objectFile.getTextSection().length;
+        List<Symbol> symbolTable = new ArrayList<>(Symbols.map.values());
+        Collections.sort(symbolTable);
         symSection.addDWord(0x0c, Endian.LITTLE);
         symSection.addDWord(0x0e, Endian.BIG);
-        for (Symbol symbol : Symbols.list) {      
-            long value = symbol.getValue();
+        int dataOffset = objectFile.getTextSection().length;
+        for (Symbol symbol : symbolTable) {      
             symSection.addDWord(symbol.getStrx());
-            switch (symbol.getType()) {
-                case TEXT -> {
-                    symSection.addByte((byte) 0x0e);    // type
-                    symSection.addByte((byte) 0x01);    // sect
-                    symSection.addWord(0);              // desc
-                    symSection.addQWord(value);
-                }
-                case DATA -> {
-                    symSection.addByte((byte) 0x0e);    // type 
-                    symSection.addByte((byte) 0x02);    // sect
-                    symSection.addWord(0);              // desc
-                    symSection.addQWord(offset + value);
-                }
-                case ABSOLUTE -> {
-                    symSection.addByte((byte) 0x02);    // type
-                    symSection.addByte((byte) 0x00);    // sect
-                    symSection.addWord(0);              // desc
-                    symSection.addQWord(value);
-                }
-                case GLOBAL -> {
-                    symSection.addByte((byte) 0x0f);
-                    symSection.addByte((byte) 0x01);
-                    symSection.addWord(0);              // desc
-                    symSection.addQWord(value);
-                }
-            }
+            symSection.addByte(symbol.getType());
+            symSection.addByte(symbol.getSect());
+            symSection.addWord(0);
+            if (symbol.getType() == 0x0e && symbol.getSect() == 2)
+                symSection.addQWord(dataOffset + symbol.getValue());
+            else
+                symSection.addQWord(symbol.getValue());                    
         }
-        symSection.addBytes(Symbols.stringTable.getBytes());
         return symSection.getBytes();
     }
     
-    public void writeToFile(ObjectFile objectFile, File dest) {
+    private byte[] assembleStringTable() {
+        return new StringTable().toString().getBytes();
+    }
+    
+    public void writeToFile() {
         try (FileOutputStream fos = new FileOutputStream(dest)) {  
             fos.write(objectFile.getBytes());
             fos.flush();
@@ -234,17 +233,13 @@ public class Assembler {
             System.err.println(ex);
         }
     }
-
+    
     public static void main(String[] args) {
-        /*if (args.length < 2) {
-            System.out.println("Usage: java assembler5.Assembler <sourcefile.asm> <objectfile.o>");
-            return;
-        }*/
-        File src = new File(System.getProperty("user.home") + "/nasm/simple.asm");
+        File src = new File("src/main/resources/simple.asm");
         File dest = new File(System.getProperty("user.dir") + "/simple.o");
-        Assembler assembler = new Assembler(src);
+        Assembler assembler = new Assembler(src, dest);
         ObjectFile objectFile = assembler.assemble();
         System.out.println(objectFile);
-        assembler.writeToFile(objectFile, dest);
+        assembler.writeToFile();
     }
 }
